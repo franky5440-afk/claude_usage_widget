@@ -22,12 +22,12 @@
 
 ## 安裝
 
-⚠️ desklet 內部把 collector 的路徑寫死在 `~/Claude/linux_claude_usage`，所以這個 repo **必須 clone 到這個固定路徑**才能正常運作。
+⚠️ desklet 內部把 collector 的路徑寫死在 `~/Claude/claude_usage_widget`，所以這個 repo **必須 clone 到這個固定路徑**才能正常運作。
 
 ```bash
 mkdir -p ~/Claude
-git clone https://github.com/franky5440-afk/linux_claude_usage.git ~/Claude/linux_claude_usage
-cd ~/Claude/linux_claude_usage
+git clone https://github.com/franky5440-afk/claude_usage_widget.git ~/Claude/claude_usage_widget
+cd ~/Claude/claude_usage_widget
 
 # 建立 venv（執行期不需要裝任何套件，只是配合 desklet 寫死的路徑）
 python3 -m venv .venv
@@ -46,13 +46,13 @@ python3 -m venv .venv
 3. 讓 collector 有資料可顯示：手動跑一次，或加進 crontab 排程
 
    ```bash
-   cd ~/Claude/linux_claude_usage && .venv/bin/python -m collector.main
+   cd ~/Claude/claude_usage_widget && .venv/bin/python -m collector.main
    ```
 
    排程範例（每分鐘跑一次）：
 
    ```
-   * * * * * cd ~/Claude/linux_claude_usage && .venv/bin/python -m collector.main
+   * * * * * cd ~/Claude/claude_usage_widget && .venv/bin/python -m collector.main
    ```
 
 4. 右鍵點桌面上的 desklet → 設定，可調整更新間隔、要不要顯示成本 / 專案排行 / Session Context、寬度

@@ -570,7 +570,7 @@ ClaudeUsageDesklet.prototype = {
         this.collectorPython = GLib.build_filenamev([
             GLib.get_home_dir(),
             "Claude",
-            "linux_claude_usage",
+            "claude_usage_widget",
             ".venv",
             "bin",
             "python"
@@ -578,14 +578,14 @@ ClaudeUsageDesklet.prototype = {
         this.collectorScript = GLib.build_filenamev([
             GLib.get_home_dir(),
             "Claude",
-            "linux_claude_usage",
+            "claude_usage_widget",
             "collector",
             "main.py"
         ]);
         this.projectRoot = GLib.build_filenamev([
             GLib.get_home_dir(),
             "Claude",
-            "linux_claude_usage"
+            "claude_usage_widget"
         ]);
 
         // UI 建構

@@ -22,12 +22,12 @@ A Cinnamon desklet that keeps your [Claude Code](https://claude.com/claude-code)
 
 ## Installation
 
-⚠️ The desklet hardcodes the collector's path as `~/Claude/linux_claude_usage`, so this repo **must be cloned to exactly that path** to work.
+⚠️ The desklet hardcodes the collector's path as `~/Claude/claude_usage_widget`, so this repo **must be cloned to exactly that path** to work.
 
 ```bash
 mkdir -p ~/Claude
-git clone https://github.com/franky5440-afk/linux_claude_usage.git ~/Claude/linux_claude_usage
-cd ~/Claude/linux_claude_usage
+git clone https://github.com/franky5440-afk/claude_usage_widget.git ~/Claude/claude_usage_widget
+cd ~/Claude/claude_usage_widget
 
 # Create the venv (no packages needed at runtime — this just matches the
 # path the desklet expects)
@@ -47,13 +47,13 @@ After installing:
 3. Give the collector something to show — run it once by hand, or schedule it with cron:
 
    ```bash
-   cd ~/Claude/linux_claude_usage && .venv/bin/python -m collector.main
+   cd ~/Claude/claude_usage_widget && .venv/bin/python -m collector.main
    ```
 
    Example crontab entry (runs every minute):
 
    ```
-   * * * * * cd ~/Claude/linux_claude_usage && .venv/bin/python -m collector.main
+   * * * * * cd ~/Claude/claude_usage_widget && .venv/bin/python -m collector.main
    ```
 
 4. Right-click the desklet on your desktop → Configure, to adjust the update interval, toggle the cost/project/session sections, or change the width
