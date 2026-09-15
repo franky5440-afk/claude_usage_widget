@@ -276,3 +276,30 @@ collector 輸出 `~/.cache/claude-usage-widget/state.json`，schema：
 `ok:false` 時仍須存在（空陣列）。完整契約見 `tests/test_session_context.py`。
 
 ---
+
+## 12. Mac 移植（2026-09-15 追加）
+
+### 12.1 平台差異
+- 逐字稿目錄在 macOS 是 `-Users-<user>-...`，與 `-home-` 同規則反解；`~/Claude main/<專案>` 編碼成 `Claude-main-<專案>`，反解時去掉 `main-`。
+- 憑證：macOS 先查 Keychain（服務名 `Claude Code-credentials`，以 `/usr/bin/security` 讀取、逾時 10 秒），查不到才讀 `~/.claude/.credentials.json`。§5 安全約束不變。
+- 前端：Übersicht widget（`widget/claude-usage.widget/`），collector 固定用 `/usr/bin/python3` 執行。
+
+### 12.2 🔴 同一則回覆只算一次（修正 §2.2）
+Claude Code 會把一則回覆的每個 content block 各寫成一行，每行帶同一個 `message.id` 與 usage；
+串流中的行 `output_tokens` 尚未長完，最後一行才是最終值。2026-09-15 實測逐行累加使今日用量高估 3.81 倍（CLI）與 1.83 倍（Dispatch）。
+- **同一個檔內同一個 `message.id` 只計一次，以最後出現的那一行為準**；增量掃描跨越同一則回覆時，後來的行取代先前的貢獻。
+- 沒有 `message.id` 的行照舊逐行計。
+- 今日、本週、專案排行、歷史帳本全部適用同一規則（成本算法只能有一套，§6.1）。
+- 歷史帳本 `schema_version` 升為 **2**；讀到舊版帳本時自動全量重建一次（不是損毀，不得出現損毀提醒）。
+
+### 12.3 Dispatch（Claude 桌面版）用量（Frank 2026-09-15 拍板）
+資料來源：`~/Library/Application Support/Claude/local-agent-mode-sessions/<acct>/<org>/`
+- 主 session：`agent/local_ditto_<org>/audit.jsonl`；派出的子 session：`local_<uuid>/audit.jsonl`。**只讀 `audit.jsonl`**。
+- assistant 行 `message.usage` 與 CLI 同格式；子代理的行帶非 null 的 `parent_tool_use_id`；`system` 行的 `model` 是模型 id。
+- ⚠️ 屬桌面版內部格式、未公開，改版可能失效；讀不到時該部分視為沒有資料，不得讓 collector 失敗。
+
+用途：
+- **B 成本／C 排行／歷史帳本**：全部 assistant 行（含子代理）計入，專案名一律 `Dispatch`。走增量掃描；**mtime 早於本週一（台灣時間）的檔不開啟**（實測 1257 檔／503MB，絕大多數是舊檔）。
+- **D Session Context**：主 session 顯示為 `Dispatch`、子 session 為 `Dispatch 子任務`；context＝最後一則 `parent_tool_use_id` 為 null 的 assistant usage；分母依最後一筆 `system.model`（含 `[1m]`→1M，否則 200K，查不到→null）。與 CLI session 一起依 mtime 排序、共用 5 分鐘窗口與 3 條上限；窗口外的檔不得開啟。
+
+契約：`tests/test_dispatch.py`、`tests/test_dedupe.py`。

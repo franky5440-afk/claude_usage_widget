@@ -4,7 +4,7 @@
 解法是搭跨日快取作廢的便車——丟掉今日累計之前先寫進這本帳本，一天一筆。
 
 帳本檔：cache_dir/history.json，格式：
-  {"schema_version": 1, "days": {date_str: {"by_model": {...}, "projects": {...}}}}
+  {"schema_version": 2, "days": {date_str: {"by_model": {...}, "projects": {...}}}}
 
 規則：
 - record_day 是覆蓋不是累加（collector 每 60 秒跑一次，同一天會記很多次）。
@@ -25,7 +25,7 @@ TW = timezone(timedelta(hours=8))
 
 HISTORY_FILE = "history.json"
 BROKEN_FILE = "history.json.broken"
-SCHEMA_VERSION = 1
+SCHEMA_VERSION = 2
 
 _USAGE_KEYS = ("input_tokens", "output_tokens",
                "cache_creation_input_tokens", "cache_read_input_tokens")
@@ -40,8 +40,8 @@ def _clean_usage(usage: Dict[str, Any]) -> Dict[str, int]:
     cleaned = {}
     for k in _USAGE_KEYS:
         try:
-            cleaned[k] = int((usage or {}).get(k, 0))
-        except (TypeError, ValueError):
+            cleaned[k] = int((usage if isinstance(usage, dict) else {}).get(k, 0))
+        except (TypeError, ValueError, OverflowError):
             cleaned[k] = 0
     return cleaned
 
@@ -52,6 +52,7 @@ def _atomic_write(path: Path, data: Dict[str, Any]) -> None:
     try:
         with open(tmp_path, "w", encoding="utf-8") as f:
             json.dump(data, f, ensure_ascii=False)
+        os.chmod(tmp_path, 0o600)
         os.replace(tmp_path, path)
     except OSError:
         if tmp_path.exists():
@@ -122,7 +123,8 @@ def load(cache_dir) -> Dict[str, Any]:
     if not isinstance(days, dict):
         _mark_broken(path)
         return _empty_store()
-    return {"schema_version": SCHEMA_VERSION, "days": days}
+    version = data.get("schema_version", 1) if isinstance(data, dict) else 1
+    return {"schema_version": version, "days": days}
 
 
 def _week_start(date_str: str) -> str:
@@ -173,7 +175,44 @@ def weekly_report(cache_dir) -> List[Dict[str, Any]]:
     return report
 
 
-def rebuild(cache_dir, projects_dir) -> Dict[str, int]:
+def _file_records(path: Path):
+    """讀單檔並以 message.id 去重；只回傳 usage、model、時間。"""
+    messages = {}
+    anonymous = []
+    try:
+        with open(path, "r", encoding="utf-8") as f:
+            for line in f:
+                try:
+                    obj = json.loads(line)
+                except ValueError:  # 含 JSONDecodeError
+                    continue
+                # 怪行跳過；rebuild 一旦拋例外帳本會停在舊版、每輪全量重掃
+                if not isinstance(obj, dict) or obj.get("type") != "assistant":
+                    continue
+                message = obj.get("message")
+                if not isinstance(message, dict):
+                    continue
+                usage = message.get("usage")
+                timestamp = obj.get("timestamp")
+                if not isinstance(usage, dict) or not isinstance(timestamp, str) or not timestamp:
+                    continue
+                model = message.get("model")
+                record = {
+                    "model": model if isinstance(model, str) and model else "unknown",
+                    "usage": _clean_usage(usage),
+                    "timestamp": timestamp,
+                }
+                message_id = message.get("id")
+                if isinstance(message_id, str) and message_id:
+                    messages[message_id] = record
+                else:
+                    anonymous.append(record)
+    except (OSError, UnicodeDecodeError):
+        return []
+    return list(messages.values()) + anonymous
+
+
+def rebuild(cache_dir, projects_dir, dispatch_dir=None) -> Dict[str, int]:
     """一次性全量掃描，把過去每一天補進帳本（只跑一次，不違反 SPEC §3）。
 
     回傳 {date_str: tokens} 表示這次補了哪些天。時間戳無效的行直接跳過，
@@ -183,50 +222,40 @@ def rebuild(cache_dir, projects_dir) -> Dict[str, int]:
     per_day_by_model: Dict[str, Dict[str, Dict[str, int]]] = {}
     per_day_projects: Dict[str, Dict[str, int]] = {}
 
-    if not projects_dir.exists():
-        return {}
-
-    for proj_dir in projects_dir.iterdir():
-        if not proj_dir.is_dir():
-            continue
-        if not proj_dir.name.startswith("-home-"):
-            continue
-        project_name = transcript_scan._decode_project_name(proj_dir.name)
-        for jsonl_file in proj_dir.rglob("*.jsonl"):
-            try:
-                with open(jsonl_file, "r", encoding="utf-8") as f:
-                    lines = f.readlines()
-            except (OSError, UnicodeDecodeError):
+    source_files = []
+    if projects_dir.exists():
+        for proj_dir in projects_dir.iterdir():
+            if not proj_dir.is_dir():
                 continue
-            for line in lines:
-                try:
-                    obj = json.loads(line)
-                except json.JSONDecodeError:
-                    continue
-                if obj.get("type") != "assistant":
-                    continue
-                msg = obj.get("message", {})
-                model = msg.get("model", "unknown")
-                usage = msg.get("usage", {})
-                ts = obj.get("timestamp")
-                if not ts:
-                    continue
-                try:
-                    dt = datetime.fromisoformat(ts.replace("Z", "+00:00"))
-                    if dt.tzinfo is None:
-                        dt = dt.replace(tzinfo=timezone.utc)
-                    day_str = dt.astimezone(TW).date().isoformat()
-                except (ValueError, AttributeError):
-                    continue
-                counts = _clean_usage(usage)
-                day_models = per_day_by_model.setdefault(day_str, {})
-                bucket = day_models.setdefault(
-                    model, {k: 0 for k in _USAGE_KEYS})
-                for k in _USAGE_KEYS:
-                    bucket[k] += counts[k]
-                tokens = sum(counts.values())
-                day_projects = per_day_projects.setdefault(day_str, {})
-                day_projects[project_name] = day_projects.get(project_name, 0) + tokens
+            if not (proj_dir.name.startswith("-home-") or proj_dir.name.startswith("-Users-")):
+                continue
+            project_name = transcript_scan._decode_project_name(proj_dir.name)
+            source_files.extend((path, project_name) for path in proj_dir.rglob("*.jsonl"))
+
+    if dispatch_dir is not None and Path(dispatch_dir).exists():
+        dispatch_dir = Path(dispatch_dir)
+        for path in transcript_scan.dispatch_audit_files(dispatch_dir):
+            if path.is_file():
+                source_files.append((path, "Dispatch"))
+
+    for jsonl_file, project_name in source_files:
+        for record in _file_records(jsonl_file):
+            model = record["model"]
+            try:
+                dt = datetime.fromisoformat(record["timestamp"].replace("Z", "+00:00"))
+                if dt.tzinfo is None:
+                    dt = dt.replace(tzinfo=timezone.utc)
+                day_str = dt.astimezone(TW).date().isoformat()
+            except (ValueError, AttributeError):
+                continue
+            counts = record["usage"]
+            day_models = per_day_by_model.setdefault(day_str, {})
+            bucket = day_models.setdefault(model, {k: 0 for k in _USAGE_KEYS})
+            for k in _USAGE_KEYS:
+                bucket[k] += counts[k]
+            tokens = sum(counts.values())
+            day_projects = per_day_projects.setdefault(day_str, {})
+            day_projects[project_name] = day_projects.get(project_name, 0) + tokens
 
     result = {}
     for day_str in sorted(per_day_by_model):
@@ -235,6 +264,9 @@ def rebuild(cache_dir, projects_dir) -> Dict[str, int]:
                    project_tokens=per_day_projects.get(day_str, {}))
         result[day_str] = sum(sum(u.values())
                               for u in per_day_by_model[day_str].values())
+    # 一天都沒補到也要把帳本寫成現行版本，否則舊版／不存在的帳本會讓每一輪都重跑全量補建
+    _atomic_write(_history_path(cache_dir),
+                  {"schema_version": SCHEMA_VERSION, "days": load(cache_dir)["days"]})
     return result
 
 

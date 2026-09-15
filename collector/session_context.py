@@ -61,7 +61,7 @@ def _read_relevant_lines(path: Path) -> List[str]:
     return text.decode("utf-8", errors="replace").splitlines()
 
 
-def _scan_session_file(path: Path) -> Tuple[Optional[Dict[str, Any]], Optional[str]]:
+def _scan_session_file(path: Path, dispatch: bool = False) -> Tuple[Optional[Dict[str, Any]], Optional[str]]:
     """掃一個逐字稿檔，回傳（最後一則主線 usage，不存在則為 None；最後一筆 modelId）。
 
     modelId 以最後出現的那一筆為準（session 中途可能 /model 換過）。
@@ -81,8 +81,8 @@ def _scan_session_file(path: Path) -> Tuple[Optional[Dict[str, Any]], Optional[s
             continue
         record_type = obj.get("type")
         if record_type == "assistant":
-            # 子代理（isSidechain）的用量是它自己的 context，不混進主線
-            if obj.get("isSidechain"):
+            # CLI 子代理與 Dispatch tool call 都不混進主線 context。
+            if (dispatch and obj.get("parent_tool_use_id") is not None) or obj.get("isSidechain"):
                 continue
             message = obj.get("message")
             if not isinstance(message, dict):
@@ -91,6 +91,10 @@ def _scan_session_file(path: Path) -> Tuple[Optional[Dict[str, Any]], Optional[s
             if not isinstance(usage, dict):
                 continue
             last_usage = usage
+        elif dispatch and record_type == "system":
+            model = obj.get("model")
+            if isinstance(model, str) and model:
+                model_id = model
         elif record_type == "attachment":
             attachment = obj.get("attachment")
             if not isinstance(attachment, dict) or attachment.get("type") != "model":
@@ -105,7 +109,7 @@ def _scan_session_file(path: Path) -> Tuple[Optional[Dict[str, Any]], Optional[s
 
 
 def active_sessions(projects_dir: Path, window_minutes: int = 5,
-                    limit: int = 3) -> List[Dict[str, Any]]:
+                    limit: int = 3, dispatch_dir: Path = None) -> List[Dict[str, Any]]:
     """回傳窗口內還在活動的 session，依最近活動由新到舊，最多 limit 條。
 
     每一條的欄位（不得增減鍵名）：
@@ -117,17 +121,17 @@ def active_sessions(projects_dir: Path, window_minutes: int = 5,
         last_active_at   str            台灣時間 ISO 字串
     """
     projects_dir = Path(projects_dir)
-    if not projects_dir.exists():
+    if not projects_dir.exists() and (dispatch_dir is None or not Path(dispatch_dir).exists()):
         return []
 
     # 先用 os.stat 的 mtime 篩掉窗口外的檔：篩掉的檔連 open 都不准開（SPEC §3）
     now = time.time()
     window_seconds = window_minutes * 60
-    candidates: List[Tuple[float, Path, str]] = []
+    candidates: List[Tuple[float, Path, str, bool]] = []
     try:
-        project_dirs = list(projects_dir.iterdir())
+        project_dirs = list(projects_dir.iterdir()) if projects_dir.exists() else []
     except OSError:
-        return []
+        project_dirs = []
     for proj_dir in project_dirs:
         if not proj_dir.is_dir():
             continue
@@ -142,15 +146,35 @@ def active_sessions(projects_dir: Path, window_minutes: int = 5,
                 continue
             if now - mtime > window_seconds:
                 continue
-            candidates.append((mtime, session_file, proj_dir.name))
+            candidates.append((mtime, session_file, proj_dir.name, False))
+
+    if dispatch_dir is not None:
+        dispatch_dir = Path(dispatch_dir)
+        if dispatch_dir.exists():
+            try:
+                dispatch_files = transcript_scan.dispatch_audit_files(dispatch_dir)
+                for session_file in dispatch_files:
+                    try:
+                        mtime = os.stat(session_file).st_mtime
+                    except OSError:
+                        continue
+                    if now - mtime > window_seconds:
+                        continue
+                    is_child = (session_file.parent.name.startswith("local_")
+                                and not session_file.parent.name.startswith("local_ditto_"))
+                    candidates.append((mtime, session_file,
+                                       "Dispatch 子任務" if is_child else "Dispatch",
+                                       True))
+            except OSError:
+                pass
 
     # 依最近活動由新到舊
     candidates.sort(key=lambda item: item[0], reverse=True)
 
     rows: List[Dict[str, Any]] = []
-    for mtime, session_file, dir_name in candidates:
+    for mtime, session_file, dir_name, is_dispatch in candidates:
         try:
-            last_usage, model_id = _scan_session_file(session_file)
+            last_usage, model_id = _scan_session_file(session_file, dispatch=is_dispatch)
         except OSError:
             # 單一檔案讀不到就跳過，不讓整批掛掉
             continue
@@ -169,7 +193,7 @@ def active_sessions(projects_dir: Path, window_minutes: int = 5,
             percent = round(tokens / context_window * 100, 1)
         rows.append({
             # 專案名與 C 區塊（專案排行）共用同一套反解，畫面上不得出現兩種名字
-            "project": transcript_scan._decode_project_name(dir_name),
+            "project": dir_name if is_dispatch else transcript_scan._decode_project_name(dir_name),
             "tokens": tokens,
             "context_window": context_window,
             "percent": percent,

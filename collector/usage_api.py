@@ -4,28 +4,68 @@
 """
 import json
 import os
+import subprocess
+import sys
 import urllib.request
 import urllib.error
 from datetime import datetime, timezone, timedelta
 from pathlib import Path
 
+KEYCHAIN_SERVICE = "Claude Code-credentials"
+
+
+def _token_from(data):
+    """從憑證 dict 取 claudeAiOauth.accessToken；結構不對回傳 None。"""
+    if not isinstance(data, dict):
+        return None
+    oauth = data.get("claudeAiOauth")
+    if not isinstance(oauth, dict):
+        return None
+    return oauth.get("accessToken") or None
+
+
+def _read_keychain_token():
+    """macOS：從 Keychain 讀 Claude Code 憑證。任何失敗都回傳 None。
+
+    stdout 含機密，只在記憶體內解析，不得轉存或輸出。
+    """
+    try:
+        result = subprocess.run(
+            ["/usr/bin/security", "find-generic-password", "-s", KEYCHAIN_SERVICE, "-w"],
+            capture_output=True, text=True, timeout=10,
+        )
+    except (OSError, subprocess.SubprocessError, ValueError):  # ValueError：stdout 解碼失敗
+        return None
+    if result.returncode != 0:
+        return None
+    try:
+        return _token_from(json.loads(result.stdout))
+    except json.JSONDecodeError:
+        return None
+
 
 def read_access_token(credentials_path=None):
-    """從 ~/.claude/.credentials.json 讀出 accessToken。
+    """讀出 Claude Code 的 accessToken。
+
+    未指定路徑時：macOS 先查 Keychain，查不到再讀 ~/.claude/.credentials.json。
+    指定路徑時只讀該檔。
 
     ⚠️ 只讀不寫。回傳值是機密，絕不可 log、print 或寫進任何檔案。
     讀不到時回傳 None（不要拋例外，呼叫端要能降級）。
     """
     if credentials_path is None:
+        if sys.platform == "darwin":
+            token = _read_keychain_token()
+            if token:
+                return token
         credentials_path = Path.home() / ".claude" / ".credentials.json"
     else:
         credentials_path = Path(credentials_path)
 
     try:
         with open(credentials_path, "r", encoding="utf-8") as f:
-            data = json.load(f)
-        return data.get("claudeAiOauth", {}).get("accessToken")
-    except (OSError, json.JSONDecodeError, KeyError):
+            return _token_from(json.load(f))
+    except (OSError, json.JSONDecodeError):
         return None
 
 

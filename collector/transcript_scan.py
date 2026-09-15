@@ -4,6 +4,7 @@
 """
 import json
 import os
+from stat import S_ISREG
 import time
 from datetime import datetime, timezone, timedelta
 from pathlib import Path
@@ -36,6 +37,7 @@ def _save_cache(cache_dir: Path, cache_data: Dict[str, Any]) -> None:
     try:
         with open(tmp_path, "w", encoding="utf-8") as f:
             json.dump(cache_data, f, ensure_ascii=False)
+        os.chmod(tmp_path, 0o600)  # 含 message id 與活動時間，與 state.json 同權限
         os.replace(tmp_path, cache_path)
     except OSError:
         if tmp_path.exists():
@@ -63,6 +65,7 @@ def _save_totals_cache(cache_dir: Path, totals: Dict[str, Any]) -> None:
     try:
         with open(tmp_path, "w", encoding="utf-8") as f:
             json.dump(totals, f, ensure_ascii=False)
+        os.chmod(tmp_path, 0o600)
         os.replace(tmp_path, cache_path)
     except OSError:
         if tmp_path.exists():
@@ -73,11 +76,12 @@ def _save_totals_cache(cache_dir: Path, totals: Dict[str, Any]) -> None:
 def _decode_project_name(dir_name: str) -> str:
     """將目錄名反解成專案名。
     支援三種格式：
-      -home-<user>                          -> "家目錄"
-      -home-<user>-Claude-<專案>            -> <專案> (專案名可能含 -)
-      -home-<user>-<其他前綴>-<專案>        -> <專案> (取最後一段)
+      -home-/-Users-<user>                 -> "家目錄"
+      -home-/-Users-<user>-Claude-main-<專案> -> <專案> (去掉 main-)
+      -home-/-Users-<user>-Claude-<專案>   -> <專案> (專案名可能含 -)
+      -home-/-Users-<user>-<其他前綴>-<專案> -> <專案> (取最後一段)
     """
-    if not dir_name.startswith("-home-"):
+    if not (dir_name.startswith("-home-") or dir_name.startswith("-Users-")):
         return dir_name
     
     # 去掉 -home-<user>- 前綴 (分割成 4 部分：['', 'home', '<user>', '<rest>'])
@@ -88,7 +92,11 @@ def _decode_project_name(dir_name: str) -> str:
     
     rest = parts[3]  # 去掉 -home-<user>- 後的剩餘部分
     
-    # 如果是 -home-<user>-Claude-<專案> 格式
+    # ~/Claude main/<專案> 的空白會編碼成 Claude-main-，顯示時去掉這層目錄名。
+    if rest.startswith("Claude-main-"):
+        return rest[len("Claude-main-"):]
+
+    # 如果是 -home-<user>-Claude-<專案> 格式；Claude-main 本身會回傳 main。
     if rest.startswith("Claude-"):
         return rest[len("Claude-"):]  # 保留完整專案名（可能含 -）
     
@@ -100,18 +108,25 @@ def _parse_jsonl_line(line: str) -> Tuple[bool, Dict[str, Any]]:
     """解析單行 jsonl，回傳 (是否為 assistant, 解析後的資料)。"""
     try:
         obj = json.loads(line)
-    except json.JSONDecodeError:
+    except ValueError:  # 含 JSONDecodeError
         return False, {}
 
-    if obj.get("type") != "assistant":
+    # 怪行一律跳過，不讓單一行拋例外拖垮整輪掃描（SPEC §4.2）
+    if not isinstance(obj, dict) or obj.get("type") != "assistant":
         return False, {}
 
-    msg = obj.get("message", {})
-    model = msg.get("model", "unknown")
+    msg = obj.get("message")
+    if not isinstance(msg, dict):
+        return False, {}
+    model = msg.get("model")
+    if not isinstance(model, str) or not model:
+        model = "unknown"
     usage = msg.get("usage", {})
     timestamp = obj.get("timestamp")
+    message_id = msg.get("id")
 
     return True, {
+        "message_id": message_id if isinstance(message_id, str) else None,
         "model": model,
         "usage": usage,
         "timestamp": timestamp,
@@ -182,7 +197,108 @@ def _process_file(filepath: Path, last_offset: int) -> Tuple[int, List[Dict[str,
     return new_offset, records
 
 
-def scan(cache_dir, projects_dir):
+FILE_CACHE_VERSION = 2
+
+
+def _usage_counts(usage: Dict[str, Any]) -> Dict[str, int]:
+    counts = {}
+    for key in ("input_tokens", "output_tokens",
+                "cache_creation_input_tokens", "cache_read_input_tokens"):
+        try:
+            counts[key] = int((usage if isinstance(usage, dict) else {}).get(key, 0) or 0)
+        except (TypeError, ValueError, OverflowError):
+            counts[key] = 0
+    return counts
+
+
+def _record_for_cache(record: Dict[str, Any]) -> Dict[str, Any]:
+    """只保留 usage、model、時間，絕不把對話文字寫入快取。"""
+    return {
+        "model": record.get("model", "unknown"),
+        "usage": _usage_counts(record.get("usage", {})),
+        "timestamp": record.get("timestamp"),
+    }
+
+
+def _cache_records(cached: Dict[str, Any]) -> Tuple[Dict[str, Dict[str, Any]], List[Dict[str, Any]]]:
+    if cached.get("version") != FILE_CACHE_VERSION:
+        return {}, []
+    messages = cached.get("messages")
+    anonymous = cached.get("anonymous")
+    if not isinstance(messages, dict) or not isinstance(anonymous, list):
+        return {}, []
+    return messages, anonymous
+
+
+def _merge_usage(bucket: Dict[str, Dict[str, int]], model: str,
+                 counts: Dict[str, int]) -> None:
+    if model not in bucket:
+        bucket[model] = {"input_tokens": 0, "output_tokens": 0,
+                         "cache_creation_input_tokens": 0,
+                         "cache_read_input_tokens": 0}
+    for key, value in counts.items():
+        bucket[model][key] = bucket[model].get(key, 0) + value
+
+
+def _add_file_records(file_cache: Dict[str, Any], today_by_model,
+                      week_by_model, project_tokens: Dict[str, int],
+                      project_name: str) -> None:
+    messages, anonymous = _cache_records(file_cache)
+    for record in list(messages.values()) + anonymous:
+        model = record.get("model", "unknown")
+        counts = _usage_counts(record.get("usage", {}))
+        if _is_in_week(record.get("timestamp")):
+            _merge_usage(week_by_model, model, counts)
+        if _is_today(record.get("timestamp")):
+            _merge_usage(today_by_model, model, counts)
+            project_tokens[project_name] = project_tokens.get(project_name, 0) + sum(counts.values())
+
+
+def dispatch_audit_files(dispatch_dir) -> List[Path]:
+    """列出 Dispatch 的 audit.jsonl（SPEC §12.3 的固定層級）。
+
+    不可用 rglob：該目錄實測 15.8 萬個子目錄，遞迴一次要 2–3 秒，
+    widget 每 30 秒跑一次會一直吃 CPU。固定深度 glob 實測 0.01 秒且涵蓋全部 1257 檔。
+    """
+    if not dispatch_dir:
+        return []
+    dispatch_dir = Path(dispatch_dir)
+    if not dispatch_dir.exists():
+        return []
+    try:
+        candidates = (list(dispatch_dir.glob("*/*/local_*/audit.jsonl"))
+                      + list(dispatch_dir.glob("*/*/agent/local_ditto_*/audit.jsonl")))
+    except OSError:
+        return []
+    files = []
+    for path in candidates:
+        # 只收一般檔案：symlink 可能指到任意檔，FIFO 會讓 open() 永遠卡住
+        try:
+            if S_ISREG(os.lstat(path).st_mode):
+                files.append(path)
+        except OSError:
+            continue
+    return files
+
+
+def _dispatch_files(dispatch_dir: Path, minimum_mtime: float) -> List[Tuple[Path, str]]:
+    """列出本週才可能有用量的 audit.jsonl，不開啟窗口外檔案。"""
+    if not dispatch_dir or not dispatch_dir.exists():
+        return []
+    files = []
+    try:
+        for path in dispatch_audit_files(dispatch_dir):
+            try:
+                if path.is_file() and os.stat(path).st_mtime >= minimum_mtime:
+                    files.append((path, "Dispatch"))
+            except OSError:
+                continue
+    except OSError:
+        pass
+    return files
+
+
+def scan(cache_dir, projects_dir, dispatch_dir=None):
     """增量掃描，回傳：
 
     {
@@ -196,22 +312,9 @@ def scan(cache_dir, projects_dir):
     累計值只在同一天（台灣時間）有效，跨日一律作廢重算。
     """
 
-    def _empty_usage() -> Dict[str, int]:
-        # 單一模型的四個分項計數器
-        return {"input_tokens": 0, "output_tokens": 0,
-                "cache_creation_input_tokens": 0,
-                "cache_read_input_tokens": 0}
-
-    def _merge_usage(bucket: Dict[str, Dict[str, int]], model: str,
-                     counts: Dict[str, int]) -> None:
-        # 將 counts 累加進 bucket[model]
-        if model not in bucket:
-            bucket[model] = _empty_usage()
-        for k, v in counts.items():
-            bucket[model][k] = bucket[model].get(k, 0) + v
-
     cache_dir = Path(cache_dir)
     projects_dir = Path(projects_dir)
+    dispatch_dir = Path(dispatch_dir) if dispatch_dir is not None else None
 
     # 載入快取
     cache = _load_cache(cache_dir)
@@ -238,31 +341,29 @@ def scan(cache_dir, projects_dir):
     project_tokens: Dict[str, int] = {}
     total_bytes_read = 0
 
-    if not projects_dir.exists():
-        # 專案目錄不存在，回傳空結果但保留快取
-        return {
-            "bytes_read": 0,
-            "totals": {
-                "today_tokens": 0,
-                "today_by_model": {},
-                "week_by_model": {},
-            },
-            "projects": [],
-        }
+    source_files: List[Tuple[Path, str]] = []
+    if projects_dir.exists():
+        try:
+            for proj_dir in projects_dir.iterdir():
+                if not proj_dir.is_dir():
+                    continue
+                if not (proj_dir.name.startswith("-home-") or proj_dir.name.startswith("-Users-")):
+                    continue
+                project_name = _decode_project_name(proj_dir.name)
+                try:
+                    source_files.extend((path, project_name)
+                                        for path in proj_dir.rglob("*.jsonl"))
+                except OSError:
+                    continue
+        except OSError:
+            pass
 
-    # 掃描所有專案目錄（以 -home- 開頭的目錄）
-    for proj_dir in projects_dir.iterdir():
-        if not proj_dir.is_dir():
-            continue
-        # 掃描所有 -home-<user> 開頭的目錄，不限制特定使用者或路徑格式
-        if not proj_dir.name.startswith("-home-"):
-            continue
+    now_tw = datetime.now(TW)
+    monday = now_tw.date() - timedelta(days=now_tw.weekday())
+    week_start = datetime.combine(monday, datetime.min.time(), tzinfo=TW).timestamp()
+    source_files.extend(_dispatch_files(dispatch_dir, week_start))
 
-        project_name = _decode_project_name(proj_dir.name)
-        project_total = 0
-
-        # 使用 rglob 遞迴掃描所有子目錄下的 .jsonl 檔案
-        for jsonl_file in proj_dir.rglob("*.jsonl"):
+    for jsonl_file, project_name in source_files:
             try:
                 stat = jsonl_file.stat()
             except OSError:
@@ -270,6 +371,10 @@ def scan(cache_dir, projects_dir):
 
             file_key = str(jsonl_file)
             cached = file_cache.get(file_key, {})
+            cached_messages, cached_anonymous = _cache_records(cached)
+            valid_cache = (cached.get("version") == FILE_CACHE_VERSION
+                           and isinstance(cached.get("messages"), dict)
+                           and isinstance(cached.get("anonymous"), list))
             last_size = cached.get("size", 0)
             last_mtime = cached.get("mtime", 0)
             last_offset = cached.get("offset", 0)
@@ -278,89 +383,43 @@ def scan(cache_dir, projects_dir):
             current_mtime = int(stat.st_mtime)
 
             # 檢查檔案是否有變動
-            if current_size == last_size and current_mtime == last_mtime:
-                # 檔案沒變，直接用快取的累計值
-                for model, usage in cached.get("today_by_model", {}).items():
-                    _merge_usage(today_by_model, model, usage)
-                for model, usage in cached.get("week_by_model", {}).items():
-                    _merge_usage(week_by_model, model, usage)
-                cached_project_tokens = cached.get("project_tokens", 0)
-                project_total += cached_project_tokens
-                project_tokens[project_name] = project_tokens.get(project_name, 0) + cached_project_tokens
+            if valid_cache and current_size == last_size and current_mtime == last_mtime:
+                _add_file_records(cached, today_by_model, week_by_model,
+                                  project_tokens, project_name)
                 continue
 
-            # 檔案有變動
-            if current_size < last_size:
-                # 檔案變小了（可能被截斷），從頭讀
+            # 只有單純 append 才沿用既有 id 快取；舊格式、截斷或同大小改寫都重掃。
+            append_only = (valid_cache and current_size > last_size
+                           and current_mtime >= last_mtime)
+            if not append_only:
                 last_offset = 0
-                # 截斷時不保留舊快取資料
-                cached_today_by_model = {}
-                cached_week_by_model = {}
-                cached_project_tokens = 0
-            else:
-                # 檔案變大，保留舊快取資料
-                cached_today_by_model = cached.get("today_by_model", {})
-                cached_week_by_model = cached.get("week_by_model", {})
-                cached_project_tokens = cached.get("project_tokens", 0)
-                # 將舊快取資料加入全域累計
-                for model, usage in cached_today_by_model.items():
-                    _merge_usage(today_by_model, model, usage)
-                for model, usage in cached_week_by_model.items():
-                    _merge_usage(week_by_model, model, usage)
-                project_total += cached_project_tokens
-                # project_tokens 稍後由 file_project_tokens 累加，這裡不重複加
+                cached_messages, cached_anonymous = {}, []
 
             new_offset, records = _process_file(jsonl_file, last_offset)
             bytes_read = new_offset - last_offset
             total_bytes_read += bytes_read
 
-            # 更新檔案快取：從舊快取開始累加
-            file_today_by_model: Dict[str, Dict[str, int]] = {}
-            for model, usage in cached_today_by_model.items():
-                file_today_by_model[model] = dict(usage)
-            file_week_by_model: Dict[str, Dict[str, int]] = {}
-            for model, usage in cached_week_by_model.items():
-                file_week_by_model[model] = dict(usage)
-            file_project_tokens = cached_project_tokens
-
+            messages = dict(cached_messages)
+            anonymous = list(cached_anonymous)
             for rec in records:
-                model = rec["model"]
-                usage = rec["usage"]
-
-                input_tokens = usage.get("input_tokens", 0)
-                output_tokens = usage.get("output_tokens", 0)
-                cache_creation = usage.get("cache_creation_input_tokens", 0)
-                cache_read = usage.get("cache_read_input_tokens", 0)
-                counts = {"input_tokens": input_tokens,
-                          "output_tokens": output_tokens,
-                          "cache_creation_input_tokens": cache_creation,
-                          "cache_read_input_tokens": cache_read}
-
-                if _is_in_week(rec["timestamp"]):
-                    _merge_usage(week_by_model, model, counts)
-                    _merge_usage(file_week_by_model, model, counts)
-
-                if not _is_today(rec["timestamp"]):
-                    continue
-
-                _merge_usage(today_by_model, model, counts)
-                _merge_usage(file_today_by_model, model, counts)
-
-                tokens = input_tokens + output_tokens + cache_creation + cache_read
-                file_project_tokens += tokens
-                project_total += tokens
+                record = _record_for_cache(rec)
+                message_id = rec.get("message_id")
+                if message_id:
+                    messages[message_id] = record
+                else:
+                    anonymous.append(record)
 
             # 更新快取
             file_cache[file_key] = {
+                "version": FILE_CACHE_VERSION,
                 "size": current_size,
                 "mtime": current_mtime,
                 "offset": new_offset,
-                "today_by_model": file_today_by_model,
-                "week_by_model": file_week_by_model,
-                "project_tokens": file_project_tokens,
+                "messages": messages,
+                "anonymous": anonymous,
             }
-
-            project_tokens[project_name] = project_tokens.get(project_name, 0) + file_project_tokens
+            _add_file_records(file_cache[file_key], today_by_model, week_by_model,
+                              project_tokens, project_name)
 
     # 計算總 token
     today_tokens = 0

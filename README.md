@@ -66,6 +66,18 @@ python3 -m venv .venv
 
 完整規格見 [SPEC.md](SPEC.md)。
 
+## macOS（Übersicht）
+
+需求：macOS、已安裝 [Übersicht](https://tracesof.net/uebersicht/)，以及 Python 3。從本 repo 根目錄執行：
+
+```bash
+./install-mac.sh
+```
+
+腳本會在 Übersicht widgets 目錄建立指向本 repo 的 symlink。重新載入 Übersicht 後，widget 每 30 秒更新一次；點擊 widget 可開啟本機週報。首次更新時 macOS 可能跳出「允許存取鑰匙圈」視窗，請按「永遠允許」。
+
+widget 會固定使用 `/usr/bin/python3` 執行 collector，因為 macOS 其他 Python 可能缺少 API 所需的 CA 憑證。
+
 ### 額度百分比 vs. Session Context 百分比
 
 這兩個數字長得像，但**意義完全不同**，別搞混：

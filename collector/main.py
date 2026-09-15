@@ -14,6 +14,8 @@ from collector import usage_api, transcript_scan, pricing, history, session_cont
 
 STATE_DIR = Path.home() / ".cache" / "claude-usage-widget"
 STATE_FILE = STATE_DIR / "state.json"
+DISPATCH_DIR = (Path.home() / "Library" / "Application Support" / "Claude"
+                / "local-agent-mode-sessions")
 
 TW = timezone(timedelta(hours=8))
 
@@ -213,15 +215,26 @@ def fetch_usage_throttled():
         return None, msg
 
 
-def _sync_history(cache_dir: Path, projects_dir: Path) -> List[str]:
+def _sync_history(cache_dir: Path, projects_dir: Path,
+                  dispatch_dir: Path = None) -> List[str]:
     """更新歷史帳本與 report.html，回傳這輪要併入 state["errors"] 的訊息。"""
     errors: List[str] = []
     cache_path = Path(cache_dir)
     broken_path = cache_path / history.BROKEN_FILE
     broken_before = broken_path.exists()
     try:
-        if not (cache_path / history.HISTORY_FILE).exists():
-            history.rebuild(cache_dir=cache_dir, projects_dir=projects_dir)
+        history_path = cache_path / history.HISTORY_FILE
+        if not history_path.exists():
+            history.rebuild(cache_dir=cache_dir, projects_dir=projects_dir,
+                            dispatch_dir=dispatch_dir)
+        else:
+            store = history.load(cache_dir)
+            if store.get("schema_version") != history.SCHEMA_VERSION:
+                history.rebuild(cache_dir=cache_dir, projects_dir=projects_dir,
+                                dispatch_dir=dispatch_dir)
+            elif not broken_before and broken_path.exists():
+                history.rebuild(cache_dir=cache_dir, projects_dir=projects_dir,
+                                dispatch_dir=dispatch_dir)
         report = history.weekly_report(cache_dir)
         cache_path.mkdir(parents=True, exist_ok=True)
         with open(cache_path / "report.html", "w", encoding="utf-8") as f:
@@ -230,7 +243,8 @@ def _sync_history(cache_dir: Path, projects_dir: Path) -> List[str]:
         errors.append(f"歷史週報產生失敗: {e}")
     if not broken_before and broken_path.exists():
         try:
-            history.rebuild(cache_dir=cache_dir, projects_dir=projects_dir)
+            history.rebuild(cache_dir=cache_dir, projects_dir=projects_dir,
+                            dispatch_dir=dispatch_dir)
             report = history.weekly_report(cache_dir)
             cache_path.mkdir(parents=True, exist_ok=True)
             with open(cache_path / "report.html", "w", encoding="utf-8") as f:
@@ -256,7 +270,8 @@ def main() -> int:
     cache_dir = STATE_DIR
     projects_dir = Path.home() / ".claude" / "projects"
     try:
-        scan_result = transcript_scan.scan(cache_dir=cache_dir, projects_dir=projects_dir)
+        scan_result = transcript_scan.scan(cache_dir=cache_dir, projects_dir=projects_dir,
+                                           dispatch_dir=DISPATCH_DIR)
     except Exception as e:
         scan_error = f"逐字稿掃描失敗: {e}"
 
@@ -265,7 +280,7 @@ def main() -> int:
     sessions: List[Dict[str, Any]] = []
     session_error: Optional[str] = None
     try:
-        sessions = session_context.active_sessions(projects_dir)
+        sessions = session_context.active_sessions(projects_dir, dispatch_dir=DISPATCH_DIR)
     except Exception as e:
         session_error = f"活動 session 掃描失敗：{e}"
 
@@ -277,7 +292,8 @@ def main() -> int:
 
     # 歷史週報：帳本不存在就先全量補建一次，之後每次更新報表。
     # 週報是附加產物，失敗只記進 errors，不影響 state 主體與結束碼。
-    state["errors"].extend(_sync_history(cache_dir, projects_dir))
+    state["errors"].extend(_sync_history(cache_dir, projects_dir,
+                                          dispatch_dir=DISPATCH_DIR))
     write_state(state)
 
     return 0

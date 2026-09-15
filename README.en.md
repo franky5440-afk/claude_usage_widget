@@ -67,6 +67,18 @@ Two layers connected by a single JSON file:
 
 Full spec in [SPEC.md](SPEC.md).
 
+## macOS (Übersicht)
+
+Requirements: macOS, [Übersicht](https://tracesof.net/uebersicht/) installed, and Python 3. From the repository root, run:
+
+```bash
+./install-mac.sh
+```
+
+The script creates a symlink to this repository in Übersicht's widgets directory. Reload Übersicht; the widget refreshes every 30 seconds, and clicking it opens the local weekly report. On the first update, macOS may show an “Allow access to Keychain” prompt; choose “Always Allow”.
+
+The widget explicitly uses `/usr/bin/python3` for the collector because other Python installations on macOS may lack the CA certificates required by the API.
+
 ### Quota percentage vs. session context percentage
 
 These two numbers look alike but mean **entirely different things**:
