@@ -1,7 +1,7 @@
 {
-  "version": "2026-09-09",
+  "version": "2026-09-15",
   "note": "每百萬 token 的美元單價。⚠️ 這是參考估算值：Max 訂閱制下實際不會照此金額收費，只用來看相對消耗。cache_write 為 input 的 1.25 倍；cache_read 一般為 input 的 0.1 倍，但 Fable 5.1／Mythos 5.1 為 0.025 倍（官方定價頁註腳），不可套通用倍率。",
-  "source": "Anthropic 官方公開定價，2026-09-08 查核；Fable 5.1 於 2026-09-09 覆核加入",
+  "source": "Anthropic 官方公開定價，2026-09-08 查核；Fable 5.1 於 2026-09-09 覆核加入；Opus 4.7 於 2026-09-15 依官方模型價目表加入（input/output 與 Opus 5 相同，cache 依通用倍率）",
   "models": {
     "claude-opus-5": {
       "display": "Opus 5",
@@ -28,8 +28,15 @@
       "display": "Fable 5.1",
       "input": 10.0,
       "output": 50.0,
-      "cache_write": 12.50,
+      "cache_write": 12.5,
       "cache_read": 0.25
+    },
+    "claude-opus-4-7": {
+      "display": "Opus 4.7",
+      "input": 5.0,
+      "output": 25.0,
+      "cache_write": 6.25,
+      "cache_read": 0.5
     }
   }
 }

@@ -79,6 +79,11 @@ The script creates a symlink to this repository in Übersicht's widgets director
 
 The widget explicitly uses `/usr/bin/python3` for the collector because other Python installations on macOS may lack the CA certificates required by the API.
 
+- **Position**: Übersicht does not support dragging widgets. Change `POSITION` at the top of `widget/claude-usage.widget/index.jsx` (default top-left `{ top: 20, left: 20 }`; bottom-right would be `{ bottom: 20, right: 20 }`). Saving the file applies it.
+- **Start at login**: Übersicht does not start at login by default. Add it under System Settings → General → Login Items.
+- **Credentials**: on macOS the collector reads Claude Code's login from the Keychain first and falls back to `~/.claude/.credentials.json`. It never writes either.
+- **Dispatch usage**: if you use Dispatch in the Claude desktop app, its tokens are included in the cost estimate and project ranking (shown as `Dispatch`), and active conversations appear under Session Context. This reads the desktop app's local internal logs, whose format is undocumented and may stop working after an app update.
+
 ### Quota percentage vs. session context percentage
 
 These two numbers look alike but mean **entirely different things**:

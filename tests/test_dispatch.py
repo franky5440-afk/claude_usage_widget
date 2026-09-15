@@ -147,9 +147,35 @@ def test_dispatch_主_session_列入_context(tmp_path):
     ])
     out = session_context.active_sessions(tmp_path / "projects", dispatch_dir=d)
     assert out == [{
-        "project": "Dispatch", "tokens": 100468, "context_window": 200000, "percent": 50.2,
+        "project": "Dispatch", "tokens": 100468, "context_window": 1000000, "percent": 10.0,
         "model": "claude-opus-5", "last_active_at": out[0]["last_active_at"],
     }], "子代理的行（parent_tool_use_id 非 null）不算主線 context"
+
+
+def test_dispatch_的_opus_5_一律是_1m(tmp_path):
+    """Frank 2026-09-15：Dispatch 用的 Opus 5 是 1M context，但 system.model 不帶 [1m] 標記。
+    照 CLI 規則套 200K 會算出 110.3% 這種鬼數字（實機看到過）。"""
+    d = tmp_path / "dispatch"
+    _write(_ditto(d), [_system("claude-opus-5"), _assistant(_usage(read=220600), mid="a")])
+    out = session_context.active_sessions(tmp_path / "projects", dispatch_dir=d)
+    assert out[0]["context_window"] == 1000000 and out[0]["percent"] == 22.1
+
+
+def test_dispatch_的其他模型照一般規則(tmp_path):
+    d = tmp_path / "dispatch"
+    _write(_ditto(d), [_system("claude-sonnet-5"), _assistant(_usage(read=50000), mid="a")])
+    out = session_context.active_sessions(tmp_path / "projects", dispatch_dir=d)
+    assert out[0]["context_window"] == 200000 and out[0]["percent"] == 25.0
+
+
+def test_cli_的_opus_5_沒有_1m_標記仍是_200k(tmp_path):
+    """1M 的放寬只限 Dispatch，CLI 照舊看 [1m] 標記。"""
+    cli = tmp_path / "projects" / "-Users-u-Claude-demo" / "s.jsonl"
+    _write(cli, [{"type": "attachment", "attachment": {"type": "model", "identity": {"modelId": "claude-opus-5"}}},
+                 {"type": "assistant", "isSidechain": False, "timestamp": "2026-09-15T00:00:00Z",
+                  "message": {"model": "claude-opus-5", "usage": _usage(read=50000)}}])
+    out = session_context.active_sessions(tmp_path / "projects", dispatch_dir=None)
+    assert out[0]["context_window"] == 200000
 
 
 def test_dispatch_子_session_另外標名(tmp_path):

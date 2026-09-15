@@ -5,6 +5,9 @@ export const SHOW_COST = true;
 export const SHOW_PROJECTS = true;
 export const SHOW_SESSIONS = true;
 export const WIDTH = 320;
+// 桌面位置（px）。Übersicht 不支援滑鼠拖拉，要換位置就改這裡，
+// 例如右下角改成 { bottom: 20, right: 20 }
+export const POSITION = { top: 20, left: 20 };
 export const refreshFrequency = 30000;
 
 const STATE_PATH = '"$HOME/.cache/claude-usage-widget/state.json"';
@@ -77,7 +80,7 @@ export const render = ({ output }) => {
   );
 };
 
-export const className = { top: 20, right: 20, width: WIDTH, fontFamily: "-apple-system", fontSize: "12px", color: "var(--text-color)" };
+export const className = { ...POSITION, width: WIDTH, fontFamily: "-apple-system", fontSize: "12px", color: "var(--text-color)" };
 
 export const style = `
   .widget { box-sizing: border-box; padding: 10px; border-radius: 8px; background: rgba(255,255,255,.72); color: #202124; box-shadow: 0 2px 12px rgba(0,0,0,.16); backdrop-filter: blur(14px); }

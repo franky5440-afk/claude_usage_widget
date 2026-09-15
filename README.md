@@ -78,6 +78,11 @@ python3 -m venv .venv
 
 widget 會固定使用 `/usr/bin/python3` 執行 collector，因為 macOS 其他 Python 可能缺少 API 所需的 CA 憑證。
 
+- **位置**：Übersicht 不支援滑鼠拖拉。要換位置，改 `widget/claude-usage.widget/index.jsx` 最上面的 `POSITION`（預設左上角 `{ top: 20, left: 20 }`，右下角例如 `{ bottom: 20, right: 20 }`），存檔後自動生效。
+- **開機自動啟動**：Übersicht 預設不會隨開機啟動。到「系統設定 → 一般 → 登入項目」把 Übersicht 加進去。
+- **憑證**：macOS 先讀鑰匙圈裡 Claude Code 的登入資訊，讀不到才讀 `~/.claude/.credentials.json`，一樣只讀不寫。
+- **Dispatch 用量**：若有使用 Claude 桌面版的 Dispatch，它的 token 會一併計入成本估算與專案排行（顯示為 `Dispatch`），進行中的對話也會列在 Session Context。這部分讀的是桌面版在本機的內部紀錄檔，格式未公開，桌面版改版後可能暫時讀不到。
+
 ### 額度百分比 vs. Session Context 百分比
 
 這兩個數字長得像，但**意義完全不同**，別搞混：

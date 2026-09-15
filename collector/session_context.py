@@ -185,7 +185,8 @@ def active_sessions(projects_dir: Path, window_minutes: int = 5,
         if model_id is None:
             context_window = None
             percent = None
-        elif "[1m]" in model_id:
+        elif "[1m]" in model_id or (is_dispatch and model_id == "claude-opus-5"):
+            # Dispatch 的 Opus 5 是 1M，但 system.model 不帶 [1m] 標記（SPEC §12.3）
             context_window = LONG_CONTEXT_WINDOW
             percent = round(tokens / context_window * 100, 1)
         else:
