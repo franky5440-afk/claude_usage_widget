@@ -17,6 +17,8 @@ from collector import transcript_scan
 # 沒有 [1m] 標記時的預設 context window
 DEFAULT_CONTEXT_WINDOW = 200_000
 LONG_CONTEXT_WINDOW = 1_000_000
+# 原生就是 1M、Claude Code 不會加 [1m] 標記的模型（SPEC §11.1）
+NATIVE_1M_MODELS = ("claude-fable-5", "claude-opus-5")
 
 # 台灣時間（SPEC §4.1：時間欄位進 state 之前就換算完）
 TW = timezone(timedelta(hours=8))
@@ -185,8 +187,7 @@ def active_sessions(projects_dir: Path, window_minutes: int = 5,
         if model_id is None:
             context_window = None
             percent = None
-        elif "[1m]" in model_id or (is_dispatch and model_id == "claude-opus-5"):
-            # Dispatch 的 Opus 5 是 1M，但 system.model 不帶 [1m] 標記（SPEC §12.3）
+        elif "[1m]" in model_id or model_id.startswith(NATIVE_1M_MODELS):
             context_window = LONG_CONTEXT_WINDOW
             percent = round(tokens / context_window * 100, 1)
         else:

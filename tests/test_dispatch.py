@@ -168,14 +168,14 @@ def test_dispatch_的其他模型照一般規則(tmp_path):
     assert out[0]["context_window"] == 200000 and out[0]["percent"] == 25.0
 
 
-def test_cli_的_opus_5_沒有_1m_標記仍是_200k(tmp_path):
-    """1M 的放寬只限 Dispatch，CLI 照舊看 [1m] 標記。"""
+def test_cli_的_opus_5_沒有_1m_標記也是_1m(tmp_path):
+    """Frank 2026-09-17：Opus 5 在 CLI 也是 1M，放寬不再只限 Dispatch。"""
     cli = tmp_path / "projects" / "-Users-u-Claude-demo" / "s.jsonl"
     _write(cli, [{"type": "attachment", "attachment": {"type": "model", "identity": {"modelId": "claude-opus-5"}}},
                  {"type": "assistant", "isSidechain": False, "timestamp": "2026-09-15T00:00:00Z",
                   "message": {"model": "claude-opus-5", "usage": _usage(read=50000)}}])
     out = session_context.active_sessions(tmp_path / "projects", dispatch_dir=None)
-    assert out[0]["context_window"] == 200000
+    assert out[0]["context_window"] == 1000000
 
 
 def test_dispatch_子_session_另外標名(tmp_path):
