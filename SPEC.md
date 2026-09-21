@@ -261,6 +261,8 @@ collector 輸出 `~/.cache/claude-usage-widget/state.json`，schema：
 （collector 呼叫 `active_sessions(window_minutes=None)`）。不設窗口時仍依 mtime 排序、湊滿 3 條就停，
 更舊的檔不得開啟（測試 `test_不設窗口時_湊滿_limit_後其餘檔不得被開啟`）。
 
+entrypoint 以 `sdk-` 開頭的 session（Agent SDK／`claude -p` 叫出來、跑完即結束）不列入，也不佔 3 條上限（Frank 2026-09-21）。
+
 ### 11.3 效能（實測，不是估計）
 
 按檔案 mtime 篩掉窗口外的檔，**只讀留下來那幾個檔的頭尾各數百 KB**。

@@ -63,24 +63,28 @@ def _read_relevant_lines(path: Path) -> List[str]:
     return text.decode("utf-8", errors="replace").splitlines()
 
 
-def _scan_session_file(path: Path, dispatch: bool = False) -> Tuple[Optional[Dict[str, Any]], Optional[str]]:
-    """掃一個逐字稿檔，回傳（最後一則主線 usage，不存在則為 None；最後一筆 modelId）。
+def _scan_session_file(path: Path, dispatch: bool = False) -> Tuple[Optional[Dict[str, Any]], Optional[str], bool]:
+    """掃一個逐字稿檔，回傳（最後一則主線 usage；最後一筆 modelId；是否為 SDK session）。
 
     modelId 以最後出現的那一筆為準（session 中途可能 /model 換過）。
     查不到 modelId 就回 None，不准拿別的數字頂替（SPEC §10.1）。
     """
     last_usage: Optional[Dict[str, Any]] = None
     model_id: Optional[str] = None
+    sdk_session = False
     for line in _read_relevant_lines(path):
         line = line.strip()
         if not line:
             continue
         try:
             obj = json.loads(line)
-        except (json.JSONDecodeError, ValueError):
+        except (json.JSONDecodeError, ValueError, RecursionError):
             continue
         if not isinstance(obj, dict):
             continue
+        if (not dispatch and isinstance(obj.get("entrypoint"), str)
+                and obj["entrypoint"].startswith("sdk-")):
+            sdk_session = True
         record_type = obj.get("type")
         if record_type == "assistant":
             # CLI 子代理與 Dispatch tool call 都不混進主線 context。
@@ -107,7 +111,7 @@ def _scan_session_file(path: Path, dispatch: bool = False) -> Tuple[Optional[Dic
             mid = identity.get("modelId")
             if isinstance(mid, str) and mid:
                 model_id = mid
-    return last_usage, model_id
+    return last_usage, model_id, sdk_session
 
 
 def active_sessions(projects_dir: Path, window_minutes: Optional[int] = 5,
@@ -177,12 +181,16 @@ def active_sessions(projects_dir: Path, window_minutes: Optional[int] = 5,
     rows: List[Dict[str, Any]] = []
     for mtime, session_file, project_dir, is_dispatch in candidates:
         try:
-            last_usage, model_id = _scan_session_file(session_file, dispatch=is_dispatch)
+            last_usage, model_id, sdk_session = _scan_session_file(
+                session_file, dispatch=is_dispatch)
         except OSError:
             # 單一檔案讀不到就跳過，不讓整批掛掉
             continue
         if last_usage is None:
             # 還沒對話的 session 沒有數字可顯示，不列入
+            continue
+        if sdk_session:
+            # Agent SDK／claude -p 的短命 session 不列入，也不佔 limit。
             continue
         tokens = context_tokens(last_usage)
         if model_id is None:

@@ -307,3 +307,49 @@ def test_state_原樣帶出_sessions():
              "last_active_at": "2026-09-13T01:00:00+08:00"}]
     state = main.build_state(None, None, None, None, sessions=rows)
     assert state["sessions"] == rows
+
+
+# --- 程式叫出來的 session 不列入（Frank 2026-09-21）-------------------------
+
+def _entry(row, entrypoint):
+    return dict(row, entrypoint=entrypoint)
+
+
+@pytest.mark.parametrize("entrypoint", ["sdk-py", "sdk-cli", "sdk-ts"])
+def test_sdk_叫出來的_session_不列入(tmp_path, entrypoint):
+    """每次 commit 自動跑的 security 審查（Agent SDK）跑完就結束、沒有 model，
+    卻會把 Dispatch 這類真正在用的對話擠出 3 條上限。entrypoint 以 sdk- 開頭一律不列。"""
+    p = tmp_path / "projects"
+    _write_session(p, "-home-u-auto", [
+        _entry(_model_attachment("claude-opus-5[1m]"), entrypoint),
+        _entry(_assistant(_usage(read=1000)), entrypoint)], age_seconds=1)
+    _write_session(p, "-home-u-human", [
+        _entry(_model_attachment("claude-opus-5[1m]"), "cli"),
+        _entry(_assistant(_usage(read=2000)), "cli")], age_seconds=60)
+    out = session_context.active_sessions(p, window_minutes=None)
+    assert [s["project"] for s in out] == ["human"]
+
+
+def test_被濾掉的_sdk_session_不佔_limit(tmp_path):
+    """濾掉的條目不能算進 3 條上限，否則畫面上還是少一條。"""
+    p = tmp_path / "projects"
+    for i in range(3):
+        _write_session(p, f"-home-u-auto{i}", [
+            _entry(_assistant(_usage(read=1000)), "sdk-py")], age_seconds=i)
+    for i in range(3):
+        _write_session(p, f"-home-u-h{i}", [
+            _model_attachment("claude-opus-5[1m]"),
+            _entry(_assistant(_usage(read=1000)), "cli")], age_seconds=100 + i)
+    out = session_context.active_sessions(p, window_minutes=None, limit=3)
+    assert [s["project"] for s in out] == ["h0", "h1", "h2"]
+
+
+@pytest.mark.parametrize("entrypoint", ["cli", "claude-desktop", None])
+def test_互動式與沒有_entrypoint_的照常列出(tmp_path, entrypoint):
+    """cli／桌面版是 Frank 實際在用的對話；舊逐字稿與 Dispatch 沒有 entrypoint 欄位，也要照列。"""
+    p = tmp_path / "projects"
+    row = _assistant(_usage(read=1000))
+    if entrypoint is not None:
+        row = _entry(row, entrypoint)
+    _write_session(p, "-home-u-proj", [_model_attachment("claude-opus-5[1m]"), row])
+    assert len(session_context.active_sessions(p, window_minutes=None)) == 1
