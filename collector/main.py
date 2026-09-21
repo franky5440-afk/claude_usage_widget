@@ -277,10 +277,12 @@ def main() -> int:
 
     # D 區塊：單一 session 的 context 佔用（SPEC §10）。附加產物，
     # 失敗只記進 errors，不讓整支掛掉（SPEC §4.2）。
+    # 不設窗口：session idle 之後照樣常駐顯示（Frank 2026-09-21）。
     sessions: List[Dict[str, Any]] = []
     session_error: Optional[str] = None
     try:
-        sessions = session_context.active_sessions(projects_dir, dispatch_dir=DISPATCH_DIR)
+        sessions = session_context.active_sessions(projects_dir, window_minutes=None,
+                                                  dispatch_dir=DISPATCH_DIR)
     except Exception as e:
         session_error = f"活動 session 掃描失敗：{e}"
 

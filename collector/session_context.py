@@ -108,9 +108,10 @@ def _scan_session_file(path: Path, dispatch: bool = False) -> Tuple[Optional[Dic
     return last_usage, model_id
 
 
-def active_sessions(projects_dir: Path, window_minutes: int = 5,
+def active_sessions(projects_dir: Path, window_minutes: Optional[int] = 5,
                     limit: int = 3, dispatch_dir: Path = None) -> List[Dict[str, Any]]:
     """回傳窗口內還在活動的 session，依最近活動由新到舊，最多 limit 條。
+    window_minutes 為 None 時不設窗口：idle 多久都照列（Frank 2026-09-21）。
 
     每一條的欄位（不得增減鍵名）：
         project          str            專案短名（反解自目錄名）
@@ -126,7 +127,7 @@ def active_sessions(projects_dir: Path, window_minutes: int = 5,
 
     # 先用 os.stat 的 mtime 篩掉窗口外的檔：篩掉的檔連 open 都不准開（SPEC §3）
     now = time.time()
-    window_seconds = window_minutes * 60
+    window_seconds = None if window_minutes is None else window_minutes * 60
     candidates: List[Tuple[float, Path, str, bool]] = []
     try:
         project_dirs = list(projects_dir.iterdir()) if projects_dir.exists() else []
@@ -144,7 +145,7 @@ def active_sessions(projects_dir: Path, window_minutes: int = 5,
                 mtime = os.stat(session_file).st_mtime
             except OSError:
                 continue
-            if now - mtime > window_seconds:
+            if window_seconds is not None and now - mtime > window_seconds:
                 continue
             candidates.append((mtime, session_file, proj_dir.name, False))
 
@@ -158,7 +159,7 @@ def active_sessions(projects_dir: Path, window_minutes: int = 5,
                         mtime = os.stat(session_file).st_mtime
                     except OSError:
                         continue
-                    if now - mtime > window_seconds:
+                    if window_seconds is not None and now - mtime > window_seconds:
                         continue
                     is_child = (session_file.parent.name.startswith("local_")
                                 and not session_file.parent.name.startswith("local_ditto_"))

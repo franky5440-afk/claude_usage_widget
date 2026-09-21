@@ -176,6 +176,45 @@ def test_最多只列_limit_條(tmp_path):
     assert len(out) == 3
 
 
+def test_不設窗口時_idle_的_session_仍常駐(tmp_path):
+    """Frank 2026-09-21：session idle 之後資料不該消失。
+    window_minutes=None 時不看閒置多久，固定列最近活動的 limit 條。"""
+    p = tmp_path / "projects"
+    _write_session(p, "-home-u-idle", [
+        _model_attachment("claude-opus-5[1m]"), _assistant(_usage(read=1000))],
+        age_seconds=86400)
+    _write_session(p, "-home-u-live", [
+        _model_attachment("claude-opus-5[1m]"), _assistant(_usage(read=2000))],
+        age_seconds=10)
+    out = session_context.active_sessions(p, window_minutes=None)
+    assert [s["project"] for s in out] == ["live", "idle"]
+
+
+def test_不設窗口時_湊滿_limit_後其餘檔不得被開啟(tmp_path, monkeypatch):
+    """🔴 SPEC §3：拿掉窗口不等於全量掃描。湊滿 limit 條就停，更舊的檔不開。"""
+    p = tmp_path / "projects"
+    for i in range(3):
+        _write_session(p, f"-home-u-p{i}", [
+            _model_attachment("claude-opus-5[1m]"), _assistant(_usage(read=1000))],
+            age_seconds=10 + i)
+    old = _write_session(p, "-home-u-old", [
+        _model_attachment("claude-opus-5[1m]"), _assistant(_usage(read=2000))],
+        age_seconds=7200)
+
+    opened = []
+    real_open = builtins.open
+
+    def spy(file, *a, **kw):
+        opened.append(str(file))
+        return real_open(file, *a, **kw)
+
+    monkeypatch.setattr(builtins, "open", spy)
+    monkeypatch.setattr(io, "open", spy)
+    out = session_context.active_sessions(p, window_minutes=None, limit=3)
+    assert len(out) == 3
+    assert str(old) not in opened
+
+
 def test_沒有任何_usage_的檔不列入(tmp_path):
     """剛開還沒對話的 session 沒有數字可顯示，列出來是一列空白。"""
     p = tmp_path / "projects"

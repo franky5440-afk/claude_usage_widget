@@ -257,6 +257,10 @@ collector 輸出 `~/.cache/claude-usage-widget/state.json`，schema：
 顯示**最近 5 分鐘內有活動**的 session，依活動時間由新到舊，**最多 3 條**。
 理由：本機常態就是多開，只顯示一條會在多個 session 之間跳來跳去。
 
+**2026-09-21 Frank 改：拿掉 5 分鐘窗口，常駐顯示最近活動的 3 條**，session idle 之後不再消失
+（collector 呼叫 `active_sessions(window_minutes=None)`）。不設窗口時仍依 mtime 排序、湊滿 3 條就停，
+更舊的檔不得開啟（測試 `test_不設窗口時_湊滿_limit_後其餘檔不得被開啟`）。
+
 ### 11.3 效能（實測，不是估計）
 
 按檔案 mtime 篩掉窗口外的檔，**只讀留下來那幾個檔的頭尾各數百 KB**。
@@ -300,6 +304,6 @@ Claude Code 會把一則回覆的每個 content block 各寫成一行，每行�
 
 用途：
 - **B 成本／C 排行／歷史帳本**：全部 assistant 行（含子代理）計入，專案名一律 `Dispatch`。走增量掃描；**mtime 早於本週一（台灣時間）的檔不開啟**（實測 1257 檔／503MB，絕大多數是舊檔）。
-- **D Session Context**：主 session 顯示為 `Dispatch`、子 session 為 `Dispatch 子任務`；context＝最後一則 `parent_tool_use_id` 為 null 的 assistant usage；分母依最後一筆 `system.model`：`claude-opus-5`→**1M**（Frank 2026-09-15：Dispatch 用的 Opus 5 是 1M，但 `system.model` 不帶 `[1m]` 標記，套 200K 實機算出 110.3%）；其他模型含 `[1m]`→1M、否則 200K；查不到→null。此放寬只限 Dispatch，CLI 照 §10.1。與 CLI session 一起依 mtime 排序、共用 5 分鐘窗口與 3 條上限；窗口外的檔不得開啟。
+- **D Session Context**：主 session 顯示為 `Dispatch`、子 session 為 `Dispatch 子任務`；context＝最後一則 `parent_tool_use_id` 為 null 的 assistant usage；分母依最後一筆 `system.model`：`claude-opus-5`→**1M**（Frank 2026-09-15：Dispatch 用的 Opus 5 是 1M，但 `system.model` 不帶 `[1m]` 標記，套 200K 實機算出 110.3%）；其他模型含 `[1m]`→1M、否則 200K；查不到→null。此放寬只限 Dispatch，CLI 照 §10.1。與 CLI session 一起依 mtime 排序、共用窗口設定（2026-09-21 起不設窗口，見 §11.2）與 3 條上限；窗口外的檔不得開啟。
 
 契約：`tests/test_dispatch.py`、`tests/test_dedupe.py`。
