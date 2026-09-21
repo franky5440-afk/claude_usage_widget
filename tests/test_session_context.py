@@ -113,6 +113,20 @@ def test_modelId_沒有_1m_就是二十萬(tmp_path):
     assert out[0]["percent"] == 50.0
 
 
+@pytest.mark.parametrize("model_id", ["claude-fable-5-1", "claude-fable-5", "claude-opus-5"])
+def test_原生_1m_的模型沒有_1m_標記也是一百萬(tmp_path, model_id):
+    """Frank 2026-09-17：Fable 5/5.1 與 Opus 5 原生就是 1M，Claude Code 不會幫它們加 [1m]。
+    實機看到 universe-bot 的 Fable 5.1 session 被算成 265K/200K = 132.6%。"""
+    p = tmp_path / "projects"
+    _write_session(p, "-home-u-proj", [
+        _model_attachment(model_id),
+        _assistant(_usage(read=265000)),
+    ])
+    out = session_context.active_sessions(p)
+    assert out[0]["context_window"] == 1_000_000
+    assert out[0]["percent"] == 26.5
+
+
 def test_找不到_modelId_不准猜分母(tmp_path):
     """🔴 這條是假數字防線。預設 20 萬會讓 1M 的 session 算出 116% 這種鬼數字
     （2026-09-13 實測撞過）。查不到就誠實留白，不得頂替。"""

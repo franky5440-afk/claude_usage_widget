@@ -248,7 +248,7 @@ collector 輸出 `~/.cache/claude-usage-widget/state.json`，schema：
   `message.usage` 之 `input_tokens + cache_read_input_tokens + cache_creation_input_tokens`。
   **`output_tokens` 不算**（下一輪才進 context）。
 - **分母**：最後一則 `type=="attachment"` 且 `attachment.type=="model"` 的
-  `attachment.identity.modelId`。含 `[1m]` → 1,000,000，否則 → 200,000。
+  `attachment.identity.modelId`。含 `[1m]` → 1,000,000；開頭是 `claude-fable-5`（含 5.1）或 `claude-opus-5` → 1,000,000（原生 1M、不帶標記，Frank 2026-09-17）；否則 → 200,000。
 - 🔴 **查不到 modelId 時 `context_window` 與 `percent` 一律 `null`，不得預設 200,000。**
   實測預設 20 萬會讓 1M 的 session 算出 116.5% 這種鬼數字，比留白更糟。
 
@@ -305,6 +305,6 @@ Claude Code 會把一則回覆的每個 content block 各寫成一行，每行�
 
 用途：
 - **B 成本／C 排行／歷史帳本**：全部 assistant 行（含子代理）計入，專案名一律 `Dispatch`。走增量掃描；**mtime 早於本週一（台灣時間）的檔不開啟**（實測 1257 檔／503MB，絕大多數是舊檔）。
-- **D Session Context**：主 session 顯示為 `Dispatch`、子 session 為 `Dispatch 子任務`；context＝最後一則 `parent_tool_use_id` 為 null 的 assistant usage；分母依最後一筆 `system.model`：`claude-opus-5`→**1M**（Frank 2026-09-15：Dispatch 用的 Opus 5 是 1M，但 `system.model` 不帶 `[1m]` 標記，套 200K 實機算出 110.3%）；其他模型含 `[1m]`→1M、否則 200K；查不到→null。此放寬只限 Dispatch，CLI 照 §10.1。與 CLI session 一起依 mtime 排序、共用窗口設定（2026-09-21 起不設窗口，見 §11.2）與 3 條上限；窗口外的檔不得開啟。
+- **D Session Context**：主 session 顯示為 `Dispatch`、子 session 為 `Dispatch 子任務`；context＝最後一則 `parent_tool_use_id` 為 null 的 assistant usage；分母依最後一筆 `system.model`，規則同 §11.1（Opus 5／Fable 5 系列不帶 `[1m]` 也是 1M；2026-09-15 實機套 200K 曾算出 110.3%）；查不到→null。與 CLI session 一起依 mtime 排序、共用窗口設定（2026-09-21 起不設窗口，見 §11.2）與 3 條上限；窗口外的檔不得開啟。
 
 契約：`tests/test_dispatch.py`、`tests/test_dedupe.py`。
