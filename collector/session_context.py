@@ -128,7 +128,7 @@ def active_sessions(projects_dir: Path, window_minutes: Optional[int] = 5,
     # 先用 os.stat 的 mtime 篩掉窗口外的檔：篩掉的檔連 open 都不准開（SPEC §3）
     now = time.time()
     window_seconds = None if window_minutes is None else window_minutes * 60
-    candidates: List[Tuple[float, Path, str, bool]] = []
+    candidates: List[Tuple[float, Path, Any, bool]] = []
     try:
         project_dirs = list(projects_dir.iterdir()) if projects_dir.exists() else []
     except OSError:
@@ -147,7 +147,7 @@ def active_sessions(projects_dir: Path, window_minutes: Optional[int] = 5,
                 continue
             if window_seconds is not None and now - mtime > window_seconds:
                 continue
-            candidates.append((mtime, session_file, proj_dir.name, False))
+            candidates.append((mtime, session_file, proj_dir, False))
 
     if dispatch_dir is not None:
         dispatch_dir = Path(dispatch_dir)
@@ -173,7 +173,7 @@ def active_sessions(projects_dir: Path, window_minutes: Optional[int] = 5,
     candidates.sort(key=lambda item: item[0], reverse=True)
 
     rows: List[Dict[str, Any]] = []
-    for mtime, session_file, dir_name, is_dispatch in candidates:
+    for mtime, session_file, project_dir, is_dispatch in candidates:
         try:
             last_usage, model_id = _scan_session_file(session_file, dispatch=is_dispatch)
         except OSError:
@@ -195,7 +195,8 @@ def active_sessions(projects_dir: Path, window_minutes: Optional[int] = 5,
             percent = round(tokens / context_window * 100, 1)
         rows.append({
             # 專案名與 C 區塊（專案排行）共用同一套反解，畫面上不得出現兩種名字
-            "project": dir_name if is_dispatch else transcript_scan._decode_project_name(dir_name),
+            "project": (project_dir if is_dispatch
+                        else transcript_scan.project_name(project_dir)),
             "tokens": tokens,
             "context_window": context_window,
             "percent": percent,

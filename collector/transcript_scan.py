@@ -4,6 +4,7 @@
 """
 import json
 import os
+import re
 from stat import S_ISREG
 import time
 from datetime import datetime, timezone, timedelta
@@ -102,6 +103,38 @@ def _decode_project_name(dir_name: str) -> str:
     
     # 其他格式：取最後一段作為專案名
     return rest.split("-")[-1]
+
+
+def project_name(proj_dir: Path) -> str:
+    """還原專案名；有損的目錄名再從逐字稿的 cwd 驗證還原。"""
+    name = _decode_project_name(proj_dir.name)
+    if "--" not in name and not name.startswith("-") and not name.endswith("-"):
+        return name
+
+    try:
+        # 只挑一般檔：FIFO 之類的特殊檔 open 會卡住整支 collector
+        files = [path for path in proj_dir.glob("*.jsonl")
+                 if S_ISREG(os.lstat(path).st_mode)]
+        if not files:
+            return name
+        latest = max(files, key=lambda path: path.stat().st_mtime)
+        with open(latest, "rb") as f:
+            head = f.read(64 * 1024)
+        for line in head.decode("utf-8", errors="replace").splitlines():
+            try:
+                record = json.loads(line)
+            except (json.JSONDecodeError, ValueError, RecursionError):
+                continue
+            cwd = record.get("cwd") if isinstance(record, dict) else None
+            if not isinstance(cwd, str) or not cwd:
+                continue
+            if re.sub(r"[^A-Za-z0-9]", "-", cwd) != proj_dir.name:
+                return name
+            basename = os.path.basename(cwd.rstrip("/"))
+            return basename or name
+    except (OSError, ValueError, TypeError):
+        pass
+    return name
 
 
 def _parse_jsonl_line(line: str) -> Tuple[bool, Dict[str, Any]]:
@@ -349,9 +382,9 @@ def scan(cache_dir, projects_dir, dispatch_dir=None):
                     continue
                 if not (proj_dir.name.startswith("-home-") or proj_dir.name.startswith("-Users-")):
                     continue
-                project_name = _decode_project_name(proj_dir.name)
+                display_name = project_name(proj_dir)
                 try:
-                    source_files.extend((path, project_name)
+                    source_files.extend((path, display_name)
                                         for path in proj_dir.rglob("*.jsonl"))
                 except OSError:
                     continue
@@ -363,7 +396,7 @@ def scan(cache_dir, projects_dir, dispatch_dir=None):
     week_start = datetime.combine(monday, datetime.min.time(), tzinfo=TW).timestamp()
     source_files.extend(_dispatch_files(dispatch_dir, week_start))
 
-    for jsonl_file, project_name in source_files:
+    for jsonl_file, project_display_name in source_files:
             try:
                 stat = jsonl_file.stat()
             except OSError:
@@ -385,7 +418,7 @@ def scan(cache_dir, projects_dir, dispatch_dir=None):
             # 檢查檔案是否有變動
             if valid_cache and current_size == last_size and current_mtime == last_mtime:
                 _add_file_records(cached, today_by_model, week_by_model,
-                                  project_tokens, project_name)
+                                  project_tokens, project_display_name)
                 continue
 
             # 只有單純 append 才沿用既有 id 快取；舊格式、截斷或同大小改寫都重掃。
@@ -419,7 +452,7 @@ def scan(cache_dir, projects_dir, dispatch_dir=None):
                 "anonymous": anonymous,
             }
             _add_file_records(file_cache[file_key], today_by_model, week_by_model,
-                              project_tokens, project_name)
+                              project_tokens, project_display_name)
 
     # 計算總 token
     today_tokens = 0

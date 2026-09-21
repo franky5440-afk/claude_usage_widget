@@ -59,7 +59,7 @@ const Projects = ({ projects }) => !SHOW_PROJECTS ? null : (
 
 const Sessions = ({ sessions }) => !SHOW_SESSIONS ? null : (
   <Section title="Session Context">
-    {sessions.map((session, index) => <div className="data-row" key={index}><span>{session.project || "未知專案"}</span><span>{view.formatTokens(session.tokens || 0)}</span><strong>{view.sessionPercentText(session) || "—"}</strong></div>)}
+    {sessions.map((session, index) => <div className="data-row" key={index}><span>{session.project || "未知專案"} <small>{view.idleText(session.last_active_at, Date.now())}</small></span><span>{view.formatTokens(session.tokens || 0)}</span><strong>{view.sessionPercentText(session) || "—"}</strong></div>)}
   </Section>
 );
 

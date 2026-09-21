@@ -285,6 +285,7 @@ collector 輸出 `~/.cache/claude-usage-widget/state.json`，schema：
 
 ### 12.1 平台差異
 - 逐字稿目錄在 macOS 是 `-Users-<user>-...`，與 `-home-` 同規則反解；`~/Claude main/<專案>` 編碼成 `Claude-main-<專案>`，反解時去掉 `main-`。
+- 反解有損（結果含 `--` 或以 `-` 開頭／結尾，例如中文專案名 `業務自動助理` → `------`）時，改讀該目錄最新逐字稿檔頭 64 KB 的第一個 `cwd`；`cwd` 的非英數字元換成 `-` 後須與目錄名完全相同才採用，取最後一層資料夾名，否則照舊用反解結果。無損的目錄不開檔。C、D 區塊共用 `transcript_scan.project_name`（Frank 2026-09-21）。
 - 憑證：macOS 先查 Keychain（服務名 `Claude Code-credentials`，以 `/usr/bin/security` 讀取、逾時 10 秒），查不到才讀 `~/.claude/.credentials.json`。§5 安全約束不變。
 - 前端：Übersicht widget（`widget/claude-usage.widget/`），collector 固定用 `/usr/bin/python3` 執行。
 

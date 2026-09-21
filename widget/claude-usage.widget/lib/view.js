@@ -70,6 +70,17 @@ function sessionPercentText(session) {
   return session.percent + "% of " + formatContextWindow(session.context_window);
 }
 
+function idleText(lastActiveAt, nowMs) {
+  if (typeof lastActiveAt !== "string") return "";
+  const activeMs = Date.parse(lastActiveAt);
+  if (Number.isNaN(activeMs)) return "";
+  const seconds = (nowMs - activeMs) / 1000;
+  if (seconds < 60) return "使用中";
+  if (seconds < 3600) return "閒置 " + Math.floor(seconds / 60) + " 分";
+  if (seconds < 86400) return "閒置 " + Math.floor(seconds / 3600) + " 時";
+  return "閒置 " + Math.floor(seconds / 86400) + " 天";
+}
+
 module.exports = {
   formatTokens,
   formatUsd,
@@ -79,4 +90,5 @@ module.exports = {
   parseState,
   normalizeState,
   sessionPercentText,
+  idleText,
 };
