@@ -9,15 +9,16 @@ from collector import history, transcript_scan
 
 TW = timezone(timedelta(hours=8))
 
+# __TS__ 在寫檔時換成當下時間：寫死日期會讓「算進今日」的斷言隔天就錯
 BAD_LINES = [
     "[]", "1", '"x"', "null",
     json.dumps({"type": "assistant", "message": "not a dict"}),
-    json.dumps({"type": "assistant", "timestamp": "2026-09-15T00:00:00Z",
+    json.dumps({"type": "assistant", "timestamp": "__TS__",
                 "message": {"id": {"nested": 1}, "model": "claude-opus-5",
                             "usage": {"output_tokens": 5}}}),
-    '{"type": "assistant", "timestamp": "2026-09-15T00:00:00Z", '
+    '{"type": "assistant", "timestamp": "__TS__", '
     '"message": {"id": "inf", "model": "claude-opus-5", "usage": {"output_tokens": Infinity}}}',
-    json.dumps({"type": "assistant", "timestamp": "2026-09-15T00:00:00Z",
+    json.dumps({"type": "assistant", "timestamp": "__TS__",
                 "message": {"id": "u", "model": "claude-opus-5", "usage": "oops"}}),
 ]
 
@@ -32,7 +33,8 @@ def _good(ts, out=100):
 
 def _write_mixed(path, ts):
     path.parent.mkdir(parents=True, exist_ok=True)
-    path.write_text("\n".join(BAD_LINES + [_good(ts)]) + "\n")
+    bad = [line.replace("__TS__", ts.isoformat()) for line in BAD_LINES]
+    path.write_text("\n".join(bad + [_good(ts)]) + "\n")
 
 
 def test_怪行不會讓掃描整個失敗(tmp_path):
@@ -57,7 +59,8 @@ def test_怪行不會讓歷史補建失敗(tmp_path):
 
     store = json.loads((cache / history.HISTORY_FILE).read_text())
     assert store["schema_version"] == history.SCHEMA_VERSION
-    assert store["days"][old.date().isoformat()]["by_model"]["claude-opus-5"]["output_tokens"] == 100
+    # 好的行 100＋id 不是字串的那行 5（同 test_怪行不會讓掃描整個失敗 的規則）
+    assert store["days"][old.date().isoformat()]["by_model"]["claude-opus-5"]["output_tokens"] == 105
 
 
 def test_快取與帳本檔權限為_0600(tmp_path):
