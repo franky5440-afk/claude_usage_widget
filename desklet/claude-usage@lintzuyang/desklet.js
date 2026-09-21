@@ -380,6 +380,24 @@ function formatContextWindow(contextWindow) {
 }
 
 /**
+ * 閒置時間文字。邏輯須與 widget/claude-usage.widget/lib/view.js 的 idleText 逐字一致，
+ * 兩邊各自維護一份是刻意的（desklet 是 cjs/GJS 環境，不能直接 require widget 那份）。
+ * @param {string} lastActiveAt - ISO 時間字串
+ * @param {number} nowMs - 現在時間（毫秒）
+ * @returns {string}
+ */
+function idleText(lastActiveAt, nowMs) {
+    if (typeof lastActiveAt !== "string") return "";
+    let activeMs = Date.parse(lastActiveAt);
+    if (Number.isNaN(activeMs)) return "";
+    let seconds = (nowMs - activeMs) / 1000;
+    if (seconds < 60) return "使用中";
+    if (seconds < 3600) return "閒置 " + Math.floor(seconds / 60) + " 分";
+    if (seconds < 86400) return "閒置 " + Math.floor(seconds / 3600) + " 時";
+    return "閒置 " + Math.floor(seconds / 86400) + " 天";
+}
+
+/**
  * 建立 Session Context 區塊（SPEC §10）
  * 結構完全比照 createProjectsSection：同樣的 null 早退、
  * 同樣的 St.BoxLayout + St.Label、同樣的三欄（專案短名 / token 數 / 百分比）。
@@ -412,12 +430,27 @@ function createSessionsSection(sessions, showSessions) {
             x_expand: true,
         });
 
+        let nameBox = new St.BoxLayout({
+            x_expand: true,
+        });
+
         let name = new St.Label({
             style_class: "claude-usage-session-name",
             text: session.project || "未知專案",
             x_align: St.Align.START,
-            x_expand: true,
         });
+
+        nameBox.add_child(name);
+
+        let idle = idleText(session.last_active_at, Date.now());
+        if (idle !== "") {
+            let idleLabel = new St.Label({
+                style_class: "claude-usage-session-idle",
+                text: idle,
+                x_align: St.Align.START,
+            });
+            nameBox.add_child(idleLabel);
+        }
 
         let tokens = new St.Label({
             style_class: "claude-usage-session-tokens",
@@ -437,7 +470,7 @@ function createSessionsSection(sessions, showSessions) {
             x_align: St.Align.END,
         });
 
-        row.add_child(name);
+        row.add_child(nameBox);
         row.add_child(tokens);
         row.add_child(percent);
         section.add_child(row);

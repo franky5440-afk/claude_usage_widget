@@ -112,11 +112,21 @@
 
 .claude-usage-session-name {
     font-size: 10pt;
+    /* 後面還要接閒置文字：不設上限的話長專案名會吃掉整列，
+       BoxLayout 反過來把 token 欄擠到跟閒置文字黏在一起（實測只剩 35px） */
+    max-width: 85px;
 }
 
 .claude-usage-session-tokens {
     font-size: 10pt;
     text-align: right;
+    padding-left: 8px;
+}
+
+.claude-usage-session-idle {
+    font-size: 8pt;
+    opacity: 0.7;
+    padding-left: 6px;
 }
 
 .claude-usage-session-percent {
