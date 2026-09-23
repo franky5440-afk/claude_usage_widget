@@ -145,6 +145,8 @@ collector 輸出 `~/.cache/claude-usage-widget/state.json`，schema：
   `cache_creation_input_tokens` 是**扣掉 1h 之後**的部分（5 分鐘）。兩者相加＝逐字稿的總寫入，
   所以把 dict 的值全部加總仍是正確的 token 總數。來源是逐字稿 `usage.cache_creation.ephemeral_1h_input_tokens`；
   沒有這個明細的舊資料一律算 5 分鐘。
+  ⚠️ 歷史帳本升版重建時只能重算逐字稿還在的日子；逐字稿已刪除的舊日子保留舊帳本數字，
+  1h 寫入仍以 5 分鐘價計，那幾天的成本偏低。原始資料已不存在，無法補正（2026-09-23）。
 - **所有時間欄位一律已經是台灣時間（UTC+8）的 ISO 字串**，desklet 不做時區換算。
 - **`ok: false` 時其餘欄位仍須存在**（可為空陣列 / null），desklet 不得因缺欄位而炸掉。
 - `errors` 是人看得懂的中文字串陣列，會直接顯示在 widget 上。
