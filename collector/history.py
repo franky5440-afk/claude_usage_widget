@@ -25,10 +25,11 @@ TW = timezone(timedelta(hours=8))
 
 HISTORY_FILE = "history.json"
 BROKEN_FILE = "history.json.broken"
-SCHEMA_VERSION = 2
+SCHEMA_VERSION = 3
 
 _USAGE_KEYS = ("input_tokens", "output_tokens",
-               "cache_creation_input_tokens", "cache_read_input_tokens")
+               "cache_creation_input_tokens", "cache_creation_1h_input_tokens",
+               "cache_read_input_tokens")
 
 
 def _history_path(cache_dir) -> Path:
@@ -36,14 +37,8 @@ def _history_path(cache_dir) -> Path:
 
 
 def _clean_usage(usage: Dict[str, Any]) -> Dict[str, int]:
-    """只保留四個分項計數，其餘欄位丟掉，避免帳本混入雜物。"""
-    cleaned = {}
-    for k in _USAGE_KEYS:
-        try:
-            cleaned[k] = int((usage if isinstance(usage, dict) else {}).get(k, 0))
-        except (TypeError, ValueError, OverflowError):
-            cleaned[k] = 0
-    return cleaned
+    """正規化 cache 寫入分項，並只保留已知計數欄位。"""
+    return transcript_scan._usage_counts(usage)
 
 
 def _atomic_write(path: Path, data: Dict[str, Any]) -> None:

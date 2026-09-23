@@ -100,7 +100,7 @@ def test_歷史補建也要去重(tmp_path):
 
 
 def test_帳本版本升到_2():
-    assert history.SCHEMA_VERSION == 2
+    assert history.SCHEMA_VERSION >= 2
 
 
 def test_舊版帳本會自動以去重算法重建(tmp_path):
@@ -121,7 +121,7 @@ def test_舊版帳本會自動以去重算法重建(tmp_path):
     errors = main._sync_history(cache, tmp_path / "projects")
 
     store = json.loads((cache / history.HISTORY_FILE).read_text())
-    assert store["schema_version"] == 2
+    assert store["schema_version"] == history.SCHEMA_VERSION
     assert store["days"][date_str]["by_model"]["claude-opus-5"]["output_tokens"] == 1391
     assert store["days"][date_str]["projects"]["demo"] == FINAL
     assert not any("損毀" in e for e in errors), "版本舊不是損毀，不得出現損毀提醒"
@@ -130,7 +130,7 @@ def test_舊版帳本會自動以去重算法重建(tmp_path):
 def test_現行版本的帳本不會每次重建(tmp_path, monkeypatch):
     cache = tmp_path / "cache"
     cache.mkdir()
-    (cache / history.HISTORY_FILE).write_text(json.dumps({"schema_version": 2, "days": {}}))
+    (cache / history.HISTORY_FILE).write_text(json.dumps({"schema_version": history.SCHEMA_VERSION, "days": {}}))
     calls = []
     monkeypatch.setattr(history, "rebuild", lambda *a, **k: calls.append(1) or {})
     main._sync_history(cache, tmp_path / "projects")

@@ -40,6 +40,7 @@ def estimate_cost_by_model(by_model: Dict[str, Dict[str, int]],
         if (usage.get("input_tokens", 0) == 0
                 and usage.get("output_tokens", 0) == 0
                 and usage.get("cache_creation_input_tokens", 0) == 0
+                and usage.get("cache_creation_1h_input_tokens", 0) == 0
                 and usage.get("cache_read_input_tokens", 0) == 0):
             # 用量全為 0，沒有金額可算，直接跳過不報錯
             continue
@@ -52,16 +53,19 @@ def estimate_cost_by_model(by_model: Dict[str, Dict[str, int]],
         input_price = prices.get("input", 0) / 1_000_000
         output_price = prices.get("output", 0) / 1_000_000
         cache_write_price = prices.get("cache_write", 0) / 1_000_000
+        cache_write_1h_price = prices.get("cache_write_1h", 0) / 1_000_000
         cache_read_price = prices.get("cache_read", 0) / 1_000_000
 
         input_tokens = usage.get("input_tokens", 0)
         output_tokens = usage.get("output_tokens", 0)
         cache_creation = usage.get("cache_creation_input_tokens", 0)
+        cache_creation_1h = usage.get("cache_creation_1h_input_tokens", 0)
         cache_read = usage.get("cache_read_input_tokens", 0)
 
         per_model[model_name] = (input_tokens * input_price +
                                  output_tokens * output_price +
                                  cache_creation * cache_write_price +
+                                 cache_creation_1h * cache_write_1h_price +
                                  cache_read * cache_read_price)
 
     return per_model, errors

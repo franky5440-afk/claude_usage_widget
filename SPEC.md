@@ -130,7 +130,8 @@ collector 輸出 `~/.cache/claude-usage-widget/state.json`，schema：
     "today_tokens": 2934567,
     "today_by_model": {
       "claude-opus-5": { "input_tokens": 120, "output_tokens": 45000,
-                         "cache_creation_input_tokens": 900000,
+                         "cache_creation_input_tokens": 300000,
+                         "cache_creation_1h_input_tokens": 600000,
                          "cache_read_input_tokens": 1954880 }
     }
   }
@@ -140,6 +141,10 @@ collector 輸出 `~/.cache/claude-usage-widget/state.json`，schema：
 規則：
 - **`today_by_model` 的值是「分項 usage dict」不是單一數字**——成本估算要分別套用
   input / output / cache 寫入 / cache 讀取四種單價，只有總數算不出金額。
+- **cache 寫入拆成不重疊的兩塊**（Frank 2026-09-23）：`cache_creation_1h_input_tokens` 是 1 小時 cache 寫入，
+  `cache_creation_input_tokens` 是**扣掉 1h 之後**的部分（5 分鐘）。兩者相加＝逐字稿的總寫入，
+  所以把 dict 的值全部加總仍是正確的 token 總數。來源是逐字稿 `usage.cache_creation.ephemeral_1h_input_tokens`；
+  沒有這個明細的舊資料一律算 5 分鐘。
 - **所有時間欄位一律已經是台灣時間（UTC+8）的 ISO 字串**，desklet 不做時區換算。
 - **`ok: false` 時其餘欄位仍須存在**（可為空陣列 / null），desklet 不得因缺欄位而炸掉。
 - `errors` 是人看得懂的中文字串陣列，會直接顯示在 widget 上。
@@ -170,7 +175,8 @@ collector 輸出 `~/.cache/claude-usage-widget/state.json`，schema：
 ## 6. 成本估算（B 區塊）
 
 價格表獨立成 `collector/pricing.json`，欄位含 `input` / `output` /
-`cache_write` / `cache_read` 的每百萬 token 單價與 `version` 日期。
+`cache_write` / `cache_write_1h` / `cache_read` 的每百萬 token 單價與 `version` 日期。
+`cache_write` 是 5 分鐘 cache 寫入價（input × 1.25），`cache_write_1h` 是 1 小時 cache 寫入價（input × 2）。
 
 - 程式**不得把價格寫死在 .py 裡**，一律讀 JSON。
 - 找不到某個模型的價格 → 該模型不計入，並在 `errors` 加一條「模型 X 無價格資料」，
@@ -182,7 +188,7 @@ collector 輸出 `~/.cache/claude-usage-widget/state.json`，schema：
 只有總額看不出錢花在哪個模型上，所以總額之外還要給分項。
 
 - 陣列，**依 `week_usd` 由大到小排序**，花最多的排最前面。
-- **只列有用量的模型**（四個分項全為 0 的跳過，與 §6 的錯誤訊息規則一致）。
+- **只列有用量的模型**（所有分項全為 0 的跳過，與 §6 的錯誤訊息規則一致）。
 - 查不到價格的模型**不進這個陣列**（沒有金額可放），但 §6 的錯誤訊息照舊要有——
   使用者從錯誤訊息知道為什麼它沒出現，不是被無聲吞掉。
 - `label` 是給人看的短名稱，**存在 `pricing.json` 每個模型的 `display` 欄位**，

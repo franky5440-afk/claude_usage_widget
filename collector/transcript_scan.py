@@ -230,17 +230,37 @@ def _process_file(filepath: Path, last_offset: int) -> Tuple[int, List[Dict[str,
     return new_offset, records
 
 
-FILE_CACHE_VERSION = 2
+FILE_CACHE_VERSION = 3
 
 
 def _usage_counts(usage: Dict[str, Any]) -> Dict[str, int]:
-    counts = {}
-    for key in ("input_tokens", "output_tokens",
-                "cache_creation_input_tokens", "cache_read_input_tokens"):
+    usage = usage if isinstance(usage, dict) else {}
+
+    def count(value):
+        if isinstance(value, bool) or not isinstance(value, (int, float)):
+            return 0
         try:
-            counts[key] = int((usage if isinstance(usage, dict) else {}).get(key, 0) or 0)
-        except (TypeError, ValueError, OverflowError):
-            counts[key] = 0
+            return max(0, int(value))
+        except (ValueError, OverflowError):
+            return 0
+
+    counts = {
+        key: count(usage.get(key, 0))
+        for key in ("input_tokens", "output_tokens", "cache_read_input_tokens")
+    }
+    total_cache = count(usage.get("cache_creation_input_tokens", 0))
+    nested = usage.get("cache_creation")
+    if isinstance(nested, dict):
+        cache_1h = count(nested.get("ephemeral_1h_input_tokens", 0))
+        cache_1h = min(total_cache, cache_1h)
+        cache_5m = total_cache - cache_1h
+    else:
+        # Flat values are already split; the 1h amount is separate from the
+        # non-1h amount and must not be clamped against it.
+        cache_1h = count(usage.get("cache_creation_1h_input_tokens", 0))
+        cache_5m = total_cache
+    counts["cache_creation_input_tokens"] = cache_5m
+    counts["cache_creation_1h_input_tokens"] = cache_1h
     return counts
 
 
@@ -268,6 +288,7 @@ def _merge_usage(bucket: Dict[str, Dict[str, int]], model: str,
     if model not in bucket:
         bucket[model] = {"input_tokens": 0, "output_tokens": 0,
                          "cache_creation_input_tokens": 0,
+                         "cache_creation_1h_input_tokens": 0,
                          "cache_read_input_tokens": 0}
     for key, value in counts.items():
         bucket[model][key] = bucket[model].get(key, 0) + value
