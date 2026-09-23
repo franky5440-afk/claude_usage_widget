@@ -471,6 +471,18 @@ def test_fable_的價格四個欄位都要有而且_cache_read_是特例():
         "Fable 是 0.025 倍的特例（$0.25），不是一般的 0.1 倍（$1.00）"
 
 
+def test_opus_5_5_與_fable_5_的_cache_read_各有各的倍率():
+    """2026-09-23 官方價目表：Opus 5.5 cache 讀取是 input 的 0.05 倍（註腳 2），
+    Fable 5（非 5.1）則是一般的 0.1 倍。兩個都很容易被順手套錯。
+    """
+    models = pricing.load_table()["models"]
+    opus = models["claude-opus-5-5"]
+    assert (opus["input"], opus["output"], opus["cache_write"]) == (4.0, 20.0, 5.0)
+    assert opus["cache_read"] == 0.20, "Opus 5.5 是 0.05 倍（$0.20），不是 0.1 倍（$0.40）"
+    assert models["claude-fable-5"]["cache_read"] == 1.0, \
+        "Fable 5 是一般的 0.1 倍，0.025 倍只限 5.1"
+
+
 def test_用量為零的模型不要報價格錯誤():
     """<synthetic> 這種佔位模型用量是 0，卻照樣佔一行錯誤訊息顯示在桌面上。
 

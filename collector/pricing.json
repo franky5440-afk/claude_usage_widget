@@ -1,14 +1,91 @@
 {
-  "version": "2026-09-15",
-  "note": "每百萬 token 的美元單價。⚠️ 這是參考估算值：Max 訂閱制下實際不會照此金額收費，只用來看相對消耗。cache_write 為 input 的 1.25 倍；cache_read 一般為 input 的 0.1 倍，但 Fable 5.1／Mythos 5.1 為 0.025 倍（官方定價頁註腳），不可套通用倍率。",
-  "source": "Anthropic 官方公開定價，2026-09-08 查核；Fable 5.1 於 2026-09-09 覆核加入；Opus 4.7 於 2026-09-15 依官方模型價目表加入（input/output 與 Opus 5 相同，cache 依通用倍率）",
+  "version": "2026-09-23",
+  "note": "每百萬 token 的美元單價。⚠️ 這是參考估算值：Max 訂閱制下實際不會照此金額收費，只用來看相對消耗。cache_write 為 5 分鐘 cache 寫入價（input 的 1.25 倍）。cache_read 一般為 input 的 0.1 倍，例外：Fable 5.1／Mythos 5.1 為 0.025 倍、Opus 5.5 為 0.05 倍（官方定價頁註腳），不可套通用倍率。",
+  "source": "Anthropic 官方模型價目表，2026-09-23 依 Frank 提供的截圖（Opus 5.5 發布日）全表逐格更新。Mythos、Opus 4.6 以下、Sonnet 4.x、Haiku 3.5 的 key 是依命名慣例推的，本機逐字稿沒出現過，尚未驗證。查價是精確比對 message.model：Linux 實機出現帶日期的 claude-haiku-4-5-20251001，故與 claude-haiku-4-5 兩個 key 並列。",
   "models": {
+    "claude-fable-5-1": {
+      "display": "Fable 5.1",
+      "input": 10.0,
+      "output": 50.0,
+      "cache_write": 12.5,
+      "cache_read": 0.25
+    },
+    "claude-mythos-5-1": {
+      "display": "Mythos 5.1",
+      "input": 10.0,
+      "output": 50.0,
+      "cache_write": 12.5,
+      "cache_read": 0.25
+    },
+    "claude-fable-5": {
+      "display": "Fable 5",
+      "input": 10.0,
+      "output": 50.0,
+      "cache_write": 12.5,
+      "cache_read": 1.0
+    },
+    "claude-mythos-5": {
+      "display": "Mythos 5",
+      "input": 10.0,
+      "output": 50.0,
+      "cache_write": 12.5,
+      "cache_read": 1.0
+    },
+    "claude-opus-5-5": {
+      "display": "Opus 5.5",
+      "input": 4.0,
+      "output": 20.0,
+      "cache_write": 5.0,
+      "cache_read": 0.2
+    },
     "claude-opus-5": {
       "display": "Opus 5",
       "input": 5.0,
       "output": 25.0,
       "cache_write": 6.25,
       "cache_read": 0.5
+    },
+    "claude-opus-4-8": {
+      "display": "Opus 4.8",
+      "input": 5.0,
+      "output": 25.0,
+      "cache_write": 6.25,
+      "cache_read": 0.5
+    },
+    "claude-opus-4-7": {
+      "display": "Opus 4.7",
+      "input": 5.0,
+      "output": 25.0,
+      "cache_write": 6.25,
+      "cache_read": 0.5
+    },
+    "claude-opus-4-6": {
+      "display": "Opus 4.6",
+      "input": 5.0,
+      "output": 25.0,
+      "cache_write": 6.25,
+      "cache_read": 0.5
+    },
+    "claude-opus-4-5": {
+      "display": "Opus 4.5",
+      "input": 5.0,
+      "output": 25.0,
+      "cache_write": 6.25,
+      "cache_read": 0.5
+    },
+    "claude-opus-4-1": {
+      "display": "Opus 4.1",
+      "input": 15.0,
+      "output": 75.0,
+      "cache_write": 18.75,
+      "cache_read": 1.5
+    },
+    "claude-opus-4": {
+      "display": "Opus 4",
+      "input": 15.0,
+      "output": 75.0,
+      "cache_write": 18.75,
+      "cache_read": 1.5
     },
     "claude-sonnet-5": {
       "display": "Sonnet 5",
@@ -17,6 +94,27 @@
       "cache_write": 2.5,
       "cache_read": 0.2
     },
+    "claude-sonnet-4-6": {
+      "display": "Sonnet 4.6",
+      "input": 3.0,
+      "output": 15.0,
+      "cache_write": 3.75,
+      "cache_read": 0.3
+    },
+    "claude-sonnet-4-5": {
+      "display": "Sonnet 4.5",
+      "input": 3.0,
+      "output": 15.0,
+      "cache_write": 3.75,
+      "cache_read": 0.3
+    },
+    "claude-sonnet-4": {
+      "display": "Sonnet 4",
+      "input": 3.0,
+      "output": 15.0,
+      "cache_write": 3.75,
+      "cache_read": 0.3
+    },
     "claude-haiku-4-5": {
       "display": "Haiku 4.5",
       "input": 1.0,
@@ -24,19 +122,19 @@
       "cache_write": 1.25,
       "cache_read": 0.1
     },
-    "claude-fable-5-1": {
-      "display": "Fable 5.1",
-      "input": 10.0,
-      "output": 50.0,
-      "cache_write": 12.5,
-      "cache_read": 0.25
+    "claude-haiku-4-5-20251001": {
+      "display": "Haiku 4.5",
+      "input": 1.0,
+      "output": 5.0,
+      "cache_write": 1.25,
+      "cache_read": 0.1
     },
-    "claude-opus-4-7": {
-      "display": "Opus 4.7",
-      "input": 5.0,
-      "output": 25.0,
-      "cache_write": 6.25,
-      "cache_read": 0.5
+    "claude-haiku-3-5": {
+      "display": "Haiku 3.5",
+      "input": 0.8,
+      "output": 4.0,
+      "cache_write": 1.0,
+      "cache_read": 0.08
     }
   }
 }
