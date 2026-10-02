@@ -57,9 +57,15 @@ const Projects = ({ projects }) => !SHOW_PROJECTS ? null : (
   </Section>
 );
 
-const Sessions = ({ sessions }) => !SHOW_SESSIONS ? null : (
+const SessionRow = ({ session }) => (
+  <div className="data-row"><span>{session.project || "未知專案"} <small>{view.idleText(session.last_active_at, Date.now())}</small></span><span>{view.formatTokens(session.tokens || 0)}</span><strong>{view.sessionPercentText(session) || "—"}</strong></div>
+);
+
+// 不能用 <>…</>：Übersicht 的 JSX 會編成 React.Fragment，但 widget 內沒有 React 變數
+const Sessions = ({ sessions, peer }) => !SHOW_SESSIONS ? null : (
   <Section title="Session Context">
-    {sessions.map((session, index) => <div className="data-row" key={index}><span>{session.project || "未知專案"} <small>{view.idleText(session.last_active_at, Date.now())}</small></span><span>{view.formatTokens(session.tokens || 0)}</span><strong>{view.sessionPercentText(session) || "—"}</strong></div>)}
+    {sessions.map((session, index) => <SessionRow session={session} key={`local-${index}`} />)}
+    {peer && <div className="peer"><h3>{peer.label}</h3>{peer.sessions.map((session, index) => <SessionRow session={session} key={`peer-${index}`} />)}</div>}
   </Section>
 );
 
@@ -73,7 +79,7 @@ export const render = ({ output }) => {
       <Limits limits={state.limits} />
       <Cost cost={state.cost} />
       <Projects projects={state.projects.slice(0, 5)} />
-      <Sessions sessions={state.sessions} />
+      <Sessions sessions={state.sessions} peer={view.peerView(state)} />
       {state.errors.length > 0 && <div className="errors">{state.errors.map((error, index) => <div key={index}>{esc(error)}</div>)}</div>}
       <div className="updated">更新：{esc(state.generated_at)}</div>
     </div>

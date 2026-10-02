@@ -81,6 +81,19 @@ function idleText(lastActiveAt, nowMs) {
   return "閒置 " + Math.floor(seconds / 86400) + " 天";
 }
 
+function peerView(state) {
+  if (state === null || typeof state !== "object" || Array.isArray(state)) return null;
+  const peer = state.peer;
+  if (peer === null || typeof peer !== "object" || Array.isArray(peer) || peer.ok !== true ||
+      typeof peer.label !== "string" || peer.label.trim() === "" || !Array.isArray(peer.sessions)) {
+    return null;
+  }
+  const sessions = peer.sessions.filter((session) =>
+    session !== null && typeof session === "object" && !Array.isArray(session)
+  ).slice(0, 3);
+  return sessions.length > 0 ? { label: peer.label, sessions } : null;
+}
+
 module.exports = {
   formatTokens,
   formatUsd,
@@ -91,4 +104,5 @@ module.exports = {
   normalizeState,
   sessionPercentText,
   idleText,
+  peerView,
 };
