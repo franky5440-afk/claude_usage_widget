@@ -405,7 +405,7 @@ function idleText(lastActiveAt, nowMs) {
  * @param {boolean} showSessions - 是否顯示 session
  * @returns {St.BoxLayout|null}
  */
-function createSessionsSection(sessions, showSessions) {
+function createSessionsSection(sessions, showSessions, titleText) {
     if (!showSessions || !sessions || sessions.length === 0) {
         return null;
     }
@@ -418,7 +418,7 @@ function createSessionsSection(sessions, showSessions) {
 
     let title = new St.Label({
         style_class: "claude-usage-section-title",
-        text: "Session Context",
+        text: titleText || "Session Context",
     });
 
     section.add_child(title);
@@ -827,7 +827,7 @@ ClaudeUsageDesklet.prototype = {
         this._updateProjects(state.projects || []);
 
         // 更新 Sessions（D 區塊）
-        this._updateSessions(state.sessions || []);
+        this._updateSessions(state.sessions || [], state.peer);
 
         // 更新 Errors
         this._updateErrors(state.errors || []);
@@ -896,12 +896,19 @@ ClaudeUsageDesklet.prototype = {
         }
     },
 
-    _updateSessions: function(sessions) {
+    _updateSessions: function(sessions, peer) {
         this._clearContainer(this.sessionsContainer);
 
         let section = createSessionsSection(sessions, this.showSessions);
         if (section) {
             this.sessionsContainer.add_child(section);
+        }
+        if (this.showSessions && peer && peer.ok === true &&
+            peer.sessions && peer.sessions.length > 0) {
+            let peerSection = createSessionsSection(peer.sessions, true, peer.label);
+            if (peerSection) {
+                this.sessionsContainer.add_child(peerSection);
+            }
         }
     },
 

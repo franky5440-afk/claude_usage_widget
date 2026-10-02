@@ -3,6 +3,7 @@ import json
 import os
 import time
 import sys
+import fcntl
 from datetime import datetime, timezone, timedelta
 from pathlib import Path
 from typing import Any, Dict, List, Optional
@@ -10,7 +11,7 @@ from typing import Any, Dict, List, Optional
 # 允許直接執行 python collector/main.py
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
-from collector import usage_api, transcript_scan, pricing, history, session_context
+from collector import usage_api, transcript_scan, pricing, history, session_context, peer
 
 STATE_DIR = Path.home() / ".cache" / "claude-usage-widget"
 STATE_FILE = STATE_DIR / "state.json"
@@ -41,6 +42,7 @@ def _default_state() -> Dict[str, Any]:
         },
         "projects": [],
         "sessions": [],
+        "peer": None,
         "totals": {
             "today_tokens": 0,
             "today_by_model": {},
@@ -50,7 +52,8 @@ def _default_state() -> Dict[str, Any]:
 
 def build_state(api_result: Optional[Dict[str, Any]], api_error: Optional[str],
                 scan_result: Optional[Dict[str, Any]], scan_error: Optional[str],
-                sessions: Optional[List[Dict[str, Any]]] = None) -> Dict[str, Any]:
+                sessions: Optional[List[Dict[str, Any]]] = None,
+                peer: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
     """產生符合 SPEC §4.1 的 state dict。
 
     ⚠️ 任何一邊失敗，其餘欄位仍須存在（可為空陣列 / null），
@@ -130,6 +133,7 @@ def build_state(api_result: Optional[Dict[str, Any]], api_error: Optional[str],
 
     # D 區塊：collector 算好就好，desklet 只負責畫；缺資料就給空陣列
     state["sessions"] = list(sessions) if sessions is not None else []
+    state["peer"] = peer
 
     state["errors"] = errors
     state["generated_at"] = _now_iso()
@@ -258,6 +262,14 @@ def _sync_history(cache_dir: Path, projects_dir: Path,
 
 def main() -> int:
     """主程式入口。"""
+    STATE_DIR.mkdir(parents=True, exist_ok=True)
+    lock_file = open(STATE_DIR / "collector.lock", "w")
+    try:
+        fcntl.flock(lock_file.fileno(), fcntl.LOCK_EX | fcntl.LOCK_NB)
+    except BlockingIOError:
+        lock_file.close()
+        return 0
+
     api_result = None
     api_error = None
     scan_result = None
@@ -287,8 +299,20 @@ def main() -> int:
         session_error = f"活動 session 掃描失敗：{e}"
 
     # 組裝 state
+    peer_state = None
+    config = None
+    try:
+        config = peer.load_config(Path.home() / ".config" / "claude-usage-widget"
+                                  / "peer.json")
+        if config is not None:
+            peer_state = peer.fetch_peer(config)
+    except Exception:
+        if config is not None:
+            peer_state = {"label": config.get("label", ""), "ok": False,
+                          "sessions": [], "error": "讀取對方資料時發生錯誤",
+                          "generated_at": None}
     state = build_state(api_result, api_error, scan_result, scan_error,
-                        sessions=sessions)
+                        sessions=sessions, peer=peer_state)
     if session_error is not None:
         state["errors"].append(session_error)
 

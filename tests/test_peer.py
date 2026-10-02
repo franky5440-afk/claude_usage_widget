@@ -276,3 +276,27 @@ def test_鎖沒被佔用時_main_照常執行(tmp_path, monkeypatch):
     with pytest.raises(RuntimeError, match="stop-here"):
         main.main()
     assert called == [1]
+
+
+# 本機查不到 modelId 時 session 的 model／context_window／percent 都是 null（SPEC §11.1），
+# 本機照樣顯示這筆；跨機也必須帶過來，不可以因為 null 整筆丟掉。
+def test_model_為_null_的_session_照樣帶過來():
+    s = dict(_session("unknown-model", 4321), model=None, context_window=None,
+             percent=None)
+    result, _ = _fetch(json.dumps(_peer_state([s])))
+    assert result["sessions"] == [s]
+
+
+# 必須是「獨占」鎖：別人只拿共用鎖時也要被擋。改用 LOCK_SH 的話，
+# 兩個 collector 都拿得到共用鎖、照樣疊在一起跑。
+def test_別人持有共用鎖時_main_也要被擋(tmp_path, monkeypatch):
+    import fcntl
+    monkeypatch.setattr(main, "STATE_DIR", tmp_path)
+    monkeypatch.setattr(main, "STATE_FILE", tmp_path / "state.json")
+    called = []
+    monkeypatch.setattr(main, "fetch_usage_throttled",
+                        lambda: called.append(1) or (None, "x"))
+    with open(tmp_path / "collector.lock", "w") as held:
+        fcntl.flock(held, fcntl.LOCK_SH | fcntl.LOCK_NB)
+        assert main.main() == 0
+    assert called == []
