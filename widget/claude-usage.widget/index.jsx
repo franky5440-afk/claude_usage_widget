@@ -71,10 +71,10 @@ const Sessions = ({ sessions, peer }) => !SHOW_SESSIONS ? null : (
 
 export const render = ({ output }) => {
   const parsed = view.parseState(output);
-  if (!parsed) return <div className="widget empty" style={{ width: WIDTH }} onClick={() => run(OPEN_REPORT)}><style>{style}</style>尚無資料，collector 執行中…</div>;
+  if (!parsed) return <div className="usage-card empty" style={{ width: WIDTH }} onClick={() => run(OPEN_REPORT)}><style>{style}</style>尚無資料，collector 執行中…</div>;
   const state = view.normalizeState(parsed);
   return (
-    <div className="widget" style={{ width: WIDTH }} onClick={() => run(OPEN_REPORT)}>
+    <div className="usage-card" style={{ width: WIDTH }} onClick={() => run(OPEN_REPORT)}>
       <style>{style}</style>
       <Limits limits={state.limits} />
       <Cost cost={state.cost} />
@@ -89,10 +89,10 @@ export const render = ({ output }) => {
 export const className = { ...POSITION, width: WIDTH, fontFamily: "-apple-system", fontSize: "12px", color: "var(--text-color)" };
 
 export const style = `
-  .widget { box-sizing: border-box; padding: 10px; border-radius: 8px; background: rgba(255,255,255,.72); color: #202124; box-shadow: 0 2px 12px rgba(0,0,0,.16); backdrop-filter: blur(14px); }
+  .usage-card { box-sizing: border-box; padding: 10px; border-radius: 8px; background: rgba(255,255,255,.72); color: #202124; box-shadow: 0 2px 12px rgba(0,0,0,.16); backdrop-filter: blur(14px); }
   .section { margin-bottom: 9px; } h3 { margin: 0 0 5px; font-size: 13px; } .limit { margin-bottom: 6px; }
   .limit-header, .cost-row, .data-row { display: flex; gap: 8px; align-items: baseline; } .limit-header span, .cost-row span:first-child, .data-row span:first-child { flex: 1; }
   .progress { height: 7px; overflow: hidden; margin: 3px 0; border-radius: 4px; background: rgba(0,0,0,.18); } .progress-fill { height: 100%; background: #5294e2; } .progress-fill.warning { background: #f0ad4e; } .progress-fill.critical { background: #d9534f; }
   small, .updated { opacity: .68; font-size: 10px; } .cost-row strong:last-child, .data-row strong { min-width: 80px; text-align: right; } .cost-row strong { min-width: 54px; text-align: right; } .total { margin-top: 3px; } .note { font-style: italic; } .errors { margin: 5px 0; color: #c0392b; } .updated { text-align: right; }
-  @media (prefers-color-scheme: dark) { .widget { background: rgba(35,35,38,.82); color: #f2f2f2; box-shadow: 0 2px 12px rgba(0,0,0,.4); } .progress { background: rgba(255,255,255,.2); } .errors { color: #ff8a80; } }
+  @media (prefers-color-scheme: dark) { .usage-card { background: rgba(35,35,38,.82); color: #f2f2f2; box-shadow: 0 2px 12px rgba(0,0,0,.4); } .progress { background: rgba(255,255,255,.2); } .errors { color: #ff8a80; } }
 `;
