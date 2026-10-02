@@ -319,3 +319,20 @@ Claude Code 會把一則回覆的每個 content block 各寫成一行，每行�
 - **D Session Context**：主 session 顯示為 `Dispatch`、子 session 為 `Dispatch 子任務`；context＝最後一則 `parent_tool_use_id` 為 null 的 assistant usage；分母依最後一筆 `system.model`，規則同 §11.1（Opus 5／Fable 5 系列不帶 `[1m]` 也是 1M；2026-09-15 實機套 200K 曾算出 110.3%）；查不到→null。與 CLI session 一起依 mtime 排序、共用窗口設定（2026-09-21 起不設窗口，見 §11.2）與 3 條上限；窗口外的檔不得開啟。
 
 契約：`tests/test_dispatch.py`、`tests/test_dedupe.py`。
+
+---
+
+## 13. 跨機顯示對方的 session context（2026-10-02 追加）
+
+Frank 同時在 Linux 與 M3 Mac 開 session，兩台 widget 要互相顯示對方的 D 區塊（Frank 2026-10-02 拍板）。
+A 區塊額度是同一帳號、數字本來相同，**不合併**。
+
+- **讀對方 collector 已算好的 `state.json`，不掃對方的逐字稿**：`/usr/bin/ssh -o BatchMode=yes -o ConnectTimeout=3 <target> cat .cache/claude-usage-widget/state.json`，argv 不經 shell，整體逾時 5 秒。
+- **設定檔** `~/.config/claude-usage-widget/peer.json`：`{"ssh_target": "...", "label": "..."}`。**不進 repo**（repo 公開，主機與帳號不外流）；不存在或無效＝功能關閉。
+- **只取對方的 `sessions`，絕不讀對方的 `peer`**（否則兩台互轉成迴圈）。逐筆驗型別、只帶白名單欄位、字串截 200 字、最多 3 條。
+- 對方 `generated_at` 超過 600 秒＝過期，sessions 清空。
+- **安靜失敗**：連不上／逾時／格式錯只記在 `peer.error`，不進 `state["errors"]`；前端在 `peer` 為 null、`ok:false` 或 sessions 為空時整段不畫。
+- 顯示：本機 3 條之下加小標 `peer.label`，再列對方最多 3 條（Frank：本機＋對方各 3 條）。
+- `state.json` 新增最上層 `"peer": null | {"label","ok","sessions","error","generated_at"}`；既有 `sessions` 不變。
+
+契約：`tests/test_peer.py`。
