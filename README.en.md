@@ -79,6 +79,7 @@ The script creates a symlink to this repository in Übersicht's widgets director
 
 launchd explicitly uses `/usr/bin/python3` for the collector because other Python installations on macOS may lack the CA certificates required by the API.
 
+- **Repository location**: launchd runs the collector from this repository as you every 30 seconds. Keep the repository inside your home directory, not in locations other users can write to such as `/tmp` or `/Users/Shared`.
 - **Uninstall**: run `launchctl bootout gui/$(id -u)/com.github.franky5440-afk.claude-usage-widget`, then delete `~/Library/LaunchAgents/com.github.franky5440-afk.claude-usage-widget.plist` and the `~/Library/Application Support/Übersicht/widgets/claude-usage.widget` symlink.
 
 - **Position**: Übersicht does not support dragging widgets. Change `POSITION` at the top of `widget/claude-usage.widget/index.jsx` (default top-left `{ top: 20, left: 20 }`; bottom-right would be `{ bottom: 20, right: 20 }`). Saving the file applies it.

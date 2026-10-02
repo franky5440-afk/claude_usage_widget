@@ -45,7 +45,8 @@ with open(plist_path, "wb") as plist_file:
 PY
 
 DOMAIN="gui/$(id -u)"
-launchctl bootout "$DOMAIN/$LABEL" || true
+# 首次安裝時服務尚不存在，bootout 必然失敗，訊息不必顯示
+launchctl bootout "$DOMAIN/$LABEL" 2>/dev/null || true
 launchctl bootstrap "$DOMAIN" "$PLIST_PATH"
 echo "首次更新時 macOS 可能跳出「允許存取鑰匙圈」視窗，請按「永遠允許」。"
 echo "collector 已由 launchd 每 30 秒執行。"

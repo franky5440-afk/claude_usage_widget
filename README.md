@@ -78,6 +78,7 @@ python3 -m venv .venv
 
 launchd 會固定使用 `/usr/bin/python3` 執行 collector，因為 macOS 其他 Python 可能缺少 API 所需的 CA 憑證。
 
+- **repo 位置**：launchd 會以你的身分每 30 秒執行 repo 裡的 collector，請把 repo 放在自己的家目錄底下，不要放在 `/tmp`、`/Users/Shared` 這類其他人也能寫入的位置。
 - **移除**：執行 `launchctl bootout gui/$(id -u)/com.github.franky5440-afk.claude-usage-widget`，再刪除 `~/Library/LaunchAgents/com.github.franky5440-afk.claude-usage-widget.plist` 與 `~/Library/Application Support/Übersicht/widgets/claude-usage.widget` symlink。
 
 - **位置**：Übersicht 不支援滑鼠拖拉。要換位置，改 `widget/claude-usage.widget/index.jsx` 最上面的 `POSITION`（預設左上角 `{ top: 20, left: 20 }`，右下角例如 `{ bottom: 20, right: 20 }`），存檔後自動生效。
