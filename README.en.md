@@ -75,9 +75,11 @@ Requirements: macOS, [Übersicht](https://tracesof.net/uebersicht/) installed, a
 ./install-mac.sh
 ```
 
-The script creates a symlink to this repository in Übersicht's widgets directory. Reload Übersicht; the widget refreshes every 30 seconds, and clicking it opens the local weekly report. On the first update, macOS may show an “Allow access to Keychain” prompt; choose “Always Allow”.
+The script creates a symlink to this repository in Übersicht's widgets directory and registers a launchd job. The collector runs in the background every 30 seconds and continues updating while the screen is off; the widget only reads `state.json`. Reload Übersicht; clicking the widget opens the local weekly report. On the first update, macOS may show an “Allow access to Keychain” prompt; choose “Always Allow”.
 
-The widget explicitly uses `/usr/bin/python3` for the collector because other Python installations on macOS may lack the CA certificates required by the API.
+launchd explicitly uses `/usr/bin/python3` for the collector because other Python installations on macOS may lack the CA certificates required by the API.
+
+- **Uninstall**: run `launchctl bootout gui/$(id -u)/com.github.franky5440-afk.claude-usage-widget`, then delete `~/Library/LaunchAgents/com.github.franky5440-afk.claude-usage-widget.plist` and the `~/Library/Application Support/Übersicht/widgets/claude-usage.widget` symlink.
 
 - **Position**: Übersicht does not support dragging widgets. Change `POSITION` at the top of `widget/claude-usage.widget/index.jsx` (default top-left `{ top: 20, left: 20 }`; bottom-right would be `{ bottom: 20, right: 20 }`). Saving the file applies it.
 - **Start at login**: Übersicht does not start at login by default. Add it under System Settings → General → Login Items.

@@ -12,8 +12,8 @@ export const refreshFrequency = 30000;
 
 const STATE_PATH = '"$HOME/.cache/claude-usage-widget/state.json"';
 
-// 只有確認解析出的目錄真的是本 repo 才執行 collector，避免在意外目錄跑 python -m
-export const command = `R="$(cd claude-usage.widget 2>/dev/null && pwd -P)" && [ -n "$R" ] && cd "$R/../.." && [ -f collector/main.py ] && (/usr/bin/python3 -m collector.main >/dev/null 2>&1 || true); cat ${STATE_PATH} 2>/dev/null || true`;
+// collector 改由 launchd 執行；widget 在這裡只讀 state.json
+export const command = `cat ${STATE_PATH} 2>/dev/null || true`;
 const OPEN_REPORT = 'open "$HOME/.cache/claude-usage-widget/report.html"';
 
 const esc = (value) => String(value == null ? "" : value);

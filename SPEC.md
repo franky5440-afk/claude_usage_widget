@@ -298,6 +298,7 @@ entrypoint 以 `sdk-` 開頭的 session（Agent SDK／`claude -p` 叫出來、�
 - 反解有損（結果含 `--` 或以 `-` 開頭／結尾，例如中文專案名 `業務自動助理` → `------`）時，改讀該目錄最新逐字稿檔頭 64 KB 的第一個 `cwd`；`cwd` 的非英數字元換成 `-` 後須與目錄名完全相同才採用，取最後一層資料夾名，否則照舊用反解結果。無損的目錄不開檔。C、D 區塊共用 `transcript_scan.project_name`（Frank 2026-09-21）。
 - 憑證：macOS 先查 Keychain（服務名 `Claude Code-credentials`，以 `/usr/bin/security` 讀取、逾時 10 秒），查不到才讀 `~/.claude/.credentials.json`。§5 安全約束不變。
 - 前端：Übersicht widget（`widget/claude-usage.widget/`），collector 固定用 `/usr/bin/python3` 執行。
+- 排程（Frank 2026-10-02）：collector 由 launchd（`install-mac.sh` 註冊，`StartInterval` 30 秒）執行，widget 的 `command` 只讀 state.json、**不得再執行 collector**。原因：Übersicht 在螢幕關閉時停止刷新，由 widget 帶動會讓 state.json 停在關螢幕前（2026-10-02 實測）。契約：`tests/test_install_mac.py`。
 
 ### 12.2 🔴 同一則回覆只算一次（修正 §2.2）
 Claude Code 會把一則回覆的每個 content block 各寫成一行，每行帶同一個 `message.id` 與 usage；

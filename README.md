@@ -74,9 +74,11 @@ python3 -m venv .venv
 ./install-mac.sh
 ```
 
-腳本會在 Übersicht widgets 目錄建立指向本 repo 的 symlink。重新載入 Übersicht 後，widget 每 30 秒更新一次；點擊 widget 可開啟本機週報。首次更新時 macOS 可能跳出「允許存取鑰匙圈」視窗，請按「永遠允許」。
+腳本會在 Übersicht widgets 目錄建立指向本 repo 的 symlink，並註冊 launchd 定時工作。collector 會在背景每 30 秒執行一次，即使螢幕關閉也會照常更新；widget 只讀取 state.json。重新載入 Übersicht 後，點擊 widget 可開啟本機週報。首次更新時 macOS 可能跳出「允許存取鑰匙圈」視窗，請按「永遠允許」。
 
-widget 會固定使用 `/usr/bin/python3` 執行 collector，因為 macOS 其他 Python 可能缺少 API 所需的 CA 憑證。
+launchd 會固定使用 `/usr/bin/python3` 執行 collector，因為 macOS 其他 Python 可能缺少 API 所需的 CA 憑證。
+
+- **移除**：執行 `launchctl bootout gui/$(id -u)/com.github.franky5440-afk.claude-usage-widget`，再刪除 `~/Library/LaunchAgents/com.github.franky5440-afk.claude-usage-widget.plist` 與 `~/Library/Application Support/Übersicht/widgets/claude-usage.widget` symlink。
 
 - **位置**：Übersicht 不支援滑鼠拖拉。要換位置，改 `widget/claude-usage.widget/index.jsx` 最上面的 `POSITION`（預設左上角 `{ top: 20, left: 20 }`，右下角例如 `{ bottom: 20, right: 20 }`），存檔後自動生效。
 - **開機自動啟動**：Übersicht 預設不會隨開機啟動。到「系統設定 → 一般 → 登入項目」把 Übersicht 加進去。
