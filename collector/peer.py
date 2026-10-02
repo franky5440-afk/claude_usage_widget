@@ -1,5 +1,6 @@
 """讀取另一台 collector 已整理好的 session context。"""
 import json
+import math
 import subprocess
 from datetime import datetime, timezone
 
@@ -13,7 +14,8 @@ def load_config(path):
             return None
         target = config.get("ssh_target")
         label = config.get("label")
-        if not isinstance(target, str) or not target.strip():
+        if (not isinstance(target, str) or not target.strip()
+                or target.startswith("-")):
             return None
         if not isinstance(label, str) or not label.strip():
             return None
@@ -45,7 +47,8 @@ def _clean_session(session):
             result[key] = None
         elif key == "context_window" and value is None:
             result[key] = None
-        elif isinstance(value, bool) or not isinstance(value, (int, float)):
+        elif (isinstance(value, bool) or not isinstance(value, (int, float))
+              or not math.isfinite(value)):
             return None
         else:
             result[key] = value
