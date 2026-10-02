@@ -300,3 +300,30 @@ def test_別人持有共用鎖時_main_也要被擋(tmp_path, monkeypatch):
         fcntl.flock(held, fcntl.LOCK_SH | fcntl.LOCK_NB)
         assert main.main() == 0
     assert called == []
+
+
+# json.loads 預設接受 NaN／Infinity；原樣寫回 state.json 後，desklet 與 Mac widget 的
+# JSON.parse 會整份讀不進來 ⇒ 額度、成本全部消失（違反「對方壞掉要安靜」）。
+# 非有限數值的那一筆整筆丟掉，其他筆照常。
+@pytest.mark.parametrize("field", ["tokens", "context_window", "percent"])
+@pytest.mark.parametrize("raw", ["NaN", "Infinity", "-Infinity", "1e999"])
+def test_非有限數值的_session_整筆丟掉(field, raw):
+    good = _session("good", 5000)
+    bad = _session("bad", 6000)
+    placeholder = 987654321
+    bad[field] = placeholder
+    text = json.dumps(_peer_state([bad, good])).replace(str(placeholder), raw, 1)
+    result, _ = _fetch(text)
+    assert result["ok"] is True
+    assert [s["project"] for s in result["sessions"]] == ["good"]
+    out = json.dumps(result)
+    assert "NaN" not in out and "Infinity" not in out
+
+
+# ssh_target 以「-」開頭會被 ssh 當成選項（例如 -oProxyCommand=…）。
+# 設定檔只有本機使用者寫得進去，但擋掉成本只有一行。
+def test_ssh_target_以減號開頭視為無效(tmp_path):
+    p = tmp_path / "peer.json"
+    p.write_text(json.dumps({"ssh_target": "-oProxyCommand=x", "label": "M3"}),
+                 encoding="utf-8")
+    assert peer.load_config(p) is None
