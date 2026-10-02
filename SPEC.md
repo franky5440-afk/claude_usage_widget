@@ -335,4 +335,6 @@ A 區塊額度是同一帳號、數字本來相同，**不合併**。
 - 顯示：本機 3 條之下加小標 `peer.label`，再列對方最多 3 條（Frank：本機＋對方各 3 條）。
 - `state.json` 新增最上層 `"peer": null | {"label","ok","sessions","error","generated_at"}`；既有 `sessions` 不變。
 
+- **防重疊執行**：desklet 每輪 spawn 不等上一輪，加了 ssh 後重疊機率變高 ⇒ `main()` 先對 `~/.cache/claude-usage-widget/collector.lock` 取非阻塞獨占 `flock`，拿不到就直接結束（回 0、不寫 state）。
+
 契約：`tests/test_peer.py`。

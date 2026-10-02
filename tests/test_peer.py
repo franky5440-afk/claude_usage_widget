@@ -241,3 +241,38 @@ def test_peer_不影響本機_sessions():
     state = main.build_state(None, None, None, None, sessions=local, peer=p)
     assert state["sessions"] == local
     assert state["peer"]["sessions"][0]["project"] == "remote"
+
+
+# --- 防止兩個 collector 疊在一起跑 -----------------------------------------
+# desklet 每輪都 spawn、不等上一輪；加了最長 5 秒的 ssh 之後重疊機率變高。
+# 兩個 collector 同時改 file_offsets.json 會把同一段逐字稿算兩次（SPEC §3）。
+# 規則：main() 先對 STATE_DIR / "collector.lock" 取「非阻塞」獨占 flock，
+# 拿不到就什麼都不做、直接回 0。鎖檔路徑在呼叫當下由 main.STATE_DIR 組出。
+
+def test_鎖被佔用時_main_直接結束不做事(tmp_path, monkeypatch):
+    import fcntl
+    monkeypatch.setattr(main, "STATE_DIR", tmp_path)
+    monkeypatch.setattr(main, "STATE_FILE", tmp_path / "state.json")
+    called = []
+    monkeypatch.setattr(main, "fetch_usage_throttled",
+                        lambda: called.append(1) or (None, "x"))
+    with open(tmp_path / "collector.lock", "w") as held:
+        fcntl.flock(held, fcntl.LOCK_EX | fcntl.LOCK_NB)
+        assert main.main() == 0
+    assert called == []
+    assert not (tmp_path / "state.json").exists()
+
+
+def test_鎖沒被佔用時_main_照常執行(tmp_path, monkeypatch):
+    monkeypatch.setattr(main, "STATE_DIR", tmp_path)
+    monkeypatch.setattr(main, "STATE_FILE", tmp_path / "state.json")
+    called = []
+
+    def stop(*a, **k):
+        called.append(1)
+        raise RuntimeError("stop-here")
+
+    monkeypatch.setattr(main, "fetch_usage_throttled", stop)
+    with pytest.raises(RuntimeError, match="stop-here"):
+        main.main()
+    assert called == [1]
