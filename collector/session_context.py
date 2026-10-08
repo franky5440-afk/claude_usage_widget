@@ -18,7 +18,8 @@ from collector import transcript_scan
 DEFAULT_CONTEXT_WINDOW = 200_000
 LONG_CONTEXT_WINDOW = 1_000_000
 # 原生就是 1M、Claude Code 不會加 [1m] 標記的模型（SPEC §11.1）
-NATIVE_1M_MODELS = ("claude-fable-5", "claude-opus-5", "claude-haiku-5")
+NATIVE_1M_MODELS = ("claude-fable-5", "claude-opus-5", "claude-haiku-5", "claude-sonnet-5",
+                    "claude-opus-4-8", "claude-opus-4-7", "claude-opus-4-6", "claude-sonnet-4-6")
 
 # 台灣時間（SPEC §4.1：時間欄位進 state 之前就換算完）
 TW = timezone(timedelta(hours=8))

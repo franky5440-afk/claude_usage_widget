@@ -105,7 +105,7 @@ def test_modelId_帶_1m_就是一百萬(tmp_path):
 def test_modelId_沒有_1m_就是二十萬(tmp_path):
     p = tmp_path / "projects"
     _write_session(p, "-home-u-proj", [
-        _model_attachment("claude-sonnet-5"),
+        _model_attachment("claude-haiku-4-5"),
         _assistant(_usage(read=100000)),
     ])
     out = session_context.active_sessions(p)
@@ -113,7 +113,10 @@ def test_modelId_沒有_1m_就是二十萬(tmp_path):
     assert out[0]["percent"] == 50.0
 
 
-@pytest.mark.parametrize("model_id", ["claude-fable-5-1", "claude-fable-5", "claude-opus-5", "claude-haiku-5-5"])
+@pytest.mark.parametrize("model_id", [
+    "claude-fable-5-1", "claude-fable-5", "claude-opus-5", "claude-haiku-5-5",
+    "claude-sonnet-5-5", "claude-sonnet-5", "claude-opus-4-8", "claude-opus-4-7",
+    "claude-opus-4-6", "claude-sonnet-4-6"])
 def test_原生_1m_的模型沒有_1m_標記也是一百萬(tmp_path, model_id):
     """Frank 2026-09-17：Fable 5/5.1 與 Opus 5 原生就是 1M，Claude Code 不會幫它們加 [1m]。
     實機看到 universe-bot 的 Fable 5.1 session 被算成 265K/200K = 132.6%。"""
@@ -144,7 +147,7 @@ def test_session_中途換模型要以最後一次為準(tmp_path):
     _write_session(p, "-home-u-proj", [
         _model_attachment("claude-opus-5[1m]"),
         _assistant(_usage(read=100000)),
-        _model_attachment("claude-sonnet-5"),
+        _model_attachment("claude-haiku-4-5"),
         _assistant(_usage(read=100000)),
     ])
     out = session_context.active_sessions(p)

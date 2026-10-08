@@ -163,7 +163,7 @@ def test_dispatch_的_opus_5_一律是_1m(tmp_path):
 
 def test_dispatch_的其他模型照一般規則(tmp_path):
     d = tmp_path / "dispatch"
-    _write(_ditto(d), [_system("claude-sonnet-5"), _assistant(_usage(read=50000), mid="a")])
+    _write(_ditto(d), [_system("claude-haiku-4-5"), _assistant(_usage(read=50000), mid="a")])
     out = session_context.active_sessions(tmp_path / "projects", dispatch_dir=d)
     assert out[0]["context_window"] == 200000 and out[0]["percent"] == 25.0
 
