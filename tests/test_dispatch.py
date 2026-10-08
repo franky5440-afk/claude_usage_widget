@@ -228,3 +228,16 @@ def test_窗口外的_dispatch_檔不得被開啟(tmp_path, monkeypatch):
 def test_main_使用桌面版的_dispatch_目錄():
     assert main.DISPATCH_DIR == (Path.home() / "Library" / "Application Support" / "Claude"
                                  / "local-agent-mode-sessions")
+
+
+def test_dispatch_大檔的_system_model_在中間也要補掃到(tmp_path):
+    """與 CLI 的 model attachment 同一套補掃規則（2026-10-08）。"""
+    d = tmp_path / "dispatch"
+    filler = {"type": "user", "message": {"content": "x" * 1000}}
+    n_head = session_context.HEAD_BYTES // 1050 + 20
+    n_tail = session_context.TAIL_BYTES // 1050 + 100
+    _write(_ditto(d), [filler] * n_head + [_system("claude-opus-5-5")] + [filler] * n_tail
+           + [_assistant(_usage(read=50000), mid="a")])
+    out = session_context.active_sessions(tmp_path / "projects", dispatch_dir=d)
+    assert out[0]["model"] == "claude-opus-5-5"
+    assert out[0]["context_window"] == 1000000

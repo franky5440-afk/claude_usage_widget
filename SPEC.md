@@ -257,6 +257,8 @@ collector 輸出 `~/.cache/claude-usage-widget/state.json`，schema：
   **`output_tokens` 不算**（下一輪才進 context）。
 - **分母**：最後一則 `type=="attachment"` 且 `attachment.type=="model"` 的
   `attachment.identity.modelId`。含 `[1m]` → 1,000,000；開頭是 `claude-fable-5`（含 5.1）、`claude-opus-5`、`claude-haiku-5`、`claude-sonnet-5`（皆含 5.5）、`claude-opus-4-8`／`4-7`／`4-6` 或 `claude-sonnet-4-6`（`claude-sonnet-5` 起這幾項 2026-10-08 依官方模型表補）→ 1,000,000（原生 1M、不帶標記，Frank 2026-09-17）；否則 → 200,000。
+- 大檔只讀頭尾各 256KB；**頭尾都沒有 model 宣告時才補掃中間段**（只篩 model 宣告行、取最後一筆），
+  頭尾有就以頭尾為準，中間不得蓋掉檔尾（2026-10-08，Mac 實機 2.4MB session 的唯一 attachment 落在 byte 276,919）。Dispatch 的 system 行同一套。
 - 🔴 **查不到 modelId 時 `context_window` 與 `percent` 一律 `null`，不得預設 200,000。**
   實測預設 20 萬會讓 1M 的 session 算出 116.5% 這種鬼數字，比留白更糟。
 

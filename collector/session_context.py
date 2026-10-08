@@ -64,6 +64,70 @@ def _read_relevant_lines(path: Path) -> List[str]:
     return text.decode("utf-8", errors="replace").splitlines()
 
 
+def _model_from_record(obj: Dict[str, Any], dispatch: bool) -> Optional[str]:
+    """一筆紀錄若是 model 宣告就回傳 modelId，否則 None。
+
+    CLI 看 attachment.type=="model"；Dispatch 另看 system 行的 model。
+    """
+    record_type = obj.get("type")
+    if dispatch and record_type == "system":
+        model = obj.get("model")
+        return model if isinstance(model, str) and model else None
+    if record_type == "attachment":
+        attachment = obj.get("attachment")
+        if not isinstance(attachment, dict) or attachment.get("type") != "model":
+            return None
+        identity = attachment.get("identity")
+        if not isinstance(identity, dict):
+            return None
+        mid = identity.get("modelId")
+        return mid if isinstance(mid, str) and mid else None
+    return None
+
+
+def _scan_middle_for_model(path: Path, dispatch: bool) -> Optional[str]:
+    """補掃頭尾沒讀到的中間段，只找 model 宣告，回傳最後一筆。
+
+    只在頭尾都找不到 modelId 時才呼叫。逐塊讀、先用位元組比對篩行，
+    只有可能是 model 宣告的行才做 json 解析，不把整段載進記憶體。
+    """
+    needle = b'"model"' if dispatch else b'"modelId"'
+    found: Optional[str] = None
+
+    def check(raw: bytes) -> None:
+        nonlocal found
+        if needle not in raw:
+            return
+        try:
+            obj = json.loads(raw.decode("utf-8", errors="replace"))
+        except (json.JSONDecodeError, ValueError, RecursionError):
+            return
+        if isinstance(obj, dict):
+            mid = _model_from_record(obj, dispatch)
+            if mid is not None:
+                found = mid
+
+    with open(path, "rb") as f:
+        size = os.fstat(f.fileno()).st_size
+        if size <= HEAD_BYTES + TAIL_BYTES:
+            return None  # 小檔已整份讀過
+        f.seek(HEAD_BYTES)
+        f.readline(65536)  # 跨頭部邊界的那一行，頭部已經讀過
+        end = size - TAIL_BYTES
+        carry = b""
+        while f.tell() < end:
+            chunk = f.read(min(1024 * 1024, end - f.tell()))
+            if not chunk:
+                break
+            lines = (carry + chunk).split(b"\n")
+            carry = lines.pop()
+            for raw in lines:
+                check(raw)
+        # 跨尾部邊界的那一行，尾部會把它當半行丟掉，這裡補讀到行尾
+        check(carry + f.readline())
+    return found
+
+
 def _scan_session_file(path: Path, dispatch: bool = False) -> Tuple[Optional[Dict[str, Any]], Optional[str], bool]:
     """掃一個逐字稿檔，回傳（最後一則主線 usage；最後一筆 modelId；是否為 SDK session）。
 
@@ -98,20 +162,13 @@ def _scan_session_file(path: Path, dispatch: bool = False) -> Tuple[Optional[Dic
             if not isinstance(usage, dict):
                 continue
             last_usage = usage
-        elif dispatch and record_type == "system":
-            model = obj.get("model")
-            if isinstance(model, str) and model:
-                model_id = model
-        elif record_type == "attachment":
-            attachment = obj.get("attachment")
-            if not isinstance(attachment, dict) or attachment.get("type") != "model":
-                continue
-            identity = attachment.get("identity")
-            if not isinstance(identity, dict):
-                continue
-            mid = identity.get("modelId")
-            if isinstance(mid, str) and mid:
+        else:
+            mid = _model_from_record(obj, dispatch)
+            if mid is not None:
                 model_id = mid
+    if model_id is None:
+        # 頭尾都沒有才補掃中間；頭尾有就以頭尾為準（檔尾最新，中間不得蓋掉）
+        model_id = _scan_middle_for_model(path, dispatch)
     return last_usage, model_id, sdk_session
 
 

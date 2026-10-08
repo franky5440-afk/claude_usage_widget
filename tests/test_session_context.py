@@ -356,3 +356,52 @@ def test_互動式與沒有_entrypoint_的照常列出(tmp_path, entrypoint):
         row = _entry(row, entrypoint)
     _write_session(p, "-home-u-proj", [_model_attachment("claude-opus-5[1m]"), row])
     assert len(session_context.active_sessions(p, window_minutes=None)) == 1
+
+
+# --- 大檔：model attachment 落在頭尾讀取範圍之外（2026-10-08 Mac 實機）----------
+
+def _filler(n_bytes):
+    """產生約 n_bytes 的無關行（user 訊息），把 attachment 推出頭尾讀取範圍。"""
+    row = {"type": "user", "message": {"content": "x" * 1000}}
+    return [row] * (n_bytes // 1050 + 1)
+
+
+def test_大檔的_model_在中間_頭尾沒有也要補掃到(tmp_path):
+    """Mac 的 sage session 2.4MB，唯一一筆 model attachment 在 byte 276,919，
+    剛好超過 HEAD_BYTES，檔尾也沒有 ⇒ 實機顯示 model=None。資料沒壞，是沒讀到。"""
+    p = tmp_path / "projects"
+    _write_session(p, "-home-u-proj", (
+        _filler(session_context.HEAD_BYTES + 20_000)
+        + [_model_attachment("claude-opus-5-5")]
+        + _filler(session_context.TAIL_BYTES + 100_000)
+        + [_assistant(_usage(read=100000))]))
+    out = session_context.active_sessions(p)
+    assert out[0]["model"] == "claude-opus-5-5"
+    assert out[0]["context_window"] == 1_000_000
+
+
+def test_大檔中間和檔尾都有_model_以檔尾為準(tmp_path):
+    """檔尾是最新的。補掃中間只在頭尾都沒找到時才做，不得蓋掉檔尾的結果。"""
+    p = tmp_path / "projects"
+    _write_session(p, "-home-u-proj", (
+        _filler(session_context.HEAD_BYTES + 20_000)
+        + [_model_attachment("claude-opus-5-5")]
+        + _filler(session_context.TAIL_BYTES + 100_000)
+        + [_model_attachment("claude-haiku-4-5"), _assistant(_usage(read=100000))]))
+    out = session_context.active_sessions(p)
+    assert out[0]["model"] == "claude-haiku-4-5"
+    assert out[0]["context_window"] == 200_000
+
+
+def test_大檔中間有好幾筆_model_取最後一筆(tmp_path):
+    """中間段也要照「最後一筆為準」，session 中途可能 /model 換過。"""
+    p = tmp_path / "projects"
+    _write_session(p, "-home-u-proj", (
+        _filler(session_context.HEAD_BYTES + 20_000)
+        + [_model_attachment("claude-haiku-4-5")]
+        + _filler(50_000)
+        + [_model_attachment("claude-opus-5-5")]
+        + _filler(session_context.TAIL_BYTES + 100_000)
+        + [_assistant(_usage(read=100000))]))
+    out = session_context.active_sessions(p)
+    assert out[0]["model"] == "claude-opus-5-5"
