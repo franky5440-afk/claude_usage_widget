@@ -113,7 +113,7 @@ def test_modelId_沒有_1m_就是二十萬(tmp_path):
     assert out[0]["percent"] == 50.0
 
 
-@pytest.mark.parametrize("model_id", ["claude-fable-5-1", "claude-fable-5", "claude-opus-5"])
+@pytest.mark.parametrize("model_id", ["claude-fable-5-1", "claude-fable-5", "claude-opus-5", "claude-haiku-5-5"])
 def test_原生_1m_的模型沒有_1m_標記也是一百萬(tmp_path, model_id):
     """Frank 2026-09-17：Fable 5/5.1 與 Opus 5 原生就是 1M，Claude Code 不會幫它們加 [1m]。
     實機看到 universe-bot 的 Fable 5.1 session 被算成 265K/200K = 132.6%。"""

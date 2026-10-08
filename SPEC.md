@@ -256,7 +256,7 @@ collector 輸出 `~/.cache/claude-usage-widget/state.json`，schema：
   `message.usage` 之 `input_tokens + cache_read_input_tokens + cache_creation_input_tokens`。
   **`output_tokens` 不算**（下一輪才進 context）。
 - **分母**：最後一則 `type=="attachment"` 且 `attachment.type=="model"` 的
-  `attachment.identity.modelId`。含 `[1m]` → 1,000,000；開頭是 `claude-fable-5`（含 5.1）或 `claude-opus-5` → 1,000,000（原生 1M、不帶標記，Frank 2026-09-17）；否則 → 200,000。
+  `attachment.identity.modelId`。含 `[1m]` → 1,000,000；開頭是 `claude-fable-5`（含 5.1）、`claude-opus-5` 或 `claude-haiku-5`（含 5.5，2026-10-08 補）→ 1,000,000（原生 1M、不帶標記，Frank 2026-09-17）；否則 → 200,000。
 - 🔴 **查不到 modelId 時 `context_window` 與 `percent` 一律 `null`，不得預設 200,000。**
   實測預設 20 萬會讓 1M 的 session 算出 116.5% 這種鬼數字，比留白更糟。
 
