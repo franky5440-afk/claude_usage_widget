@@ -1,7 +1,7 @@
 {
   "version": "2026-10-08",
   "note": "每百萬 token 的美元單價。⚠️ 這是參考估算值：Max 訂閱制下實際不會照此金額收費，只用來看相對消耗。cache_write 為 5 分鐘 cache 寫入價（input 的 1.25 倍）。cache_read 一般為 input 的 0.1 倍，例外：Fable 5.1／Mythos 5.1 為 0.025 倍、Opus 5.5、Sonnet 5.5 為 0.05 倍（官方定價頁註腳），不可套通用倍率。 cache_write_1h 為 1 小時 cache 寫入價（input 的 2 倍）。 ⚠️ Haiku 5.5 官方是分級計價（prompt ≤100,000 token 用低價檔；超過則 input／output／cache 全部 5 倍：input 0.5、output 2.5、cache_write 0.625、cache_write_1h 1.0、cache_read 0.05），但 collector 先依模型加總才算錢、分不出單筆 prompt 大小，表內只填低價檔 ⇒ 大 prompt 會被低估（2026-10-08 Frank 決定）。",
-  "source": "Anthropic 官方模型價目表，2026-09-23 依 Frank 提供的截圖（Opus 5.5 發布日）全表逐格更新；2026-10-01 新增 Sonnet 5.5（Frank 截圖＋官方定價頁核對，cache_read 走標準 0.1 倍）。Mythos、Opus 4.6 以下、Sonnet 4.x、Haiku 3.5 的 key 是依命名慣例推的，本機逐字稿沒出現過，尚未驗證。查價是精確比對 message.model：Linux 實機出現帶日期的 claude-haiku-4-5-20251001，故與 claude-haiku-4-5 兩個 key 並列。 2026-10-08 新增 Haiku 5.5（Frank 截圖，Haiku 5.5 發布日；key claude-haiku-5-5 依官方 model id，本機逐字稿尚未出現）；同一張截圖 Sonnet 5.5 cache_read 為 $0.10，更正原本的 0.2。",
+  "source": "Anthropic 官方模型價目表，2026-09-23 依 Frank 提供的截圖（Opus 5.5 發布日）全表逐格更新；2026-10-01 新增 Sonnet 5.5（Frank 截圖＋官方定價頁核對，cache_read 走標準 0.1 倍）。Mythos、Opus 4.6 以下、Sonnet 4.x、Haiku 3.5 的 key 是依命名慣例推的，本機逐字稿沒出現過，尚未驗證。查價是精確比對 message.model：Linux 實機出現帶日期的 claude-haiku-4-5-20251001，故與 claude-haiku-4-5 兩個 key 並列。 2026-10-08 新增 Haiku 5.5（Frank 截圖，Haiku 5.5 發布日；key claude-haiku-5-5 依官方 model id，本機逐字稿尚未出現）；Sonnet 5.5 cache_read 2026-10-08 官方降價 0.2→0.1（Frank 確認；10/1 填的 0.2 當時是對的，不是填錯）。",
   "models": {
     "claude-fable-5-1": {
       "display": "Fable 5.1",
